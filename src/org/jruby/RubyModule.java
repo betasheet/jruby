@@ -2517,7 +2517,7 @@ public class RubyModule extends RubyObject {
     @JRubyMethod(name = "const_defined?", required = 1, compat = RUBY1_8)
     public RubyBoolean const_defined_p(ThreadContext context, IRubyObject symbol) {
         // Note: includes part of fix for JRUBY-1339
-        return context.runtime.newBoolean(fastIsConstantDefined(validateConstant(symbol.asJavaString()).intern()));
+        return context.runtime.newBoolean(fastIsConstantDefined19(validateConstant(symbol.asJavaString()).intern()));
     }
 
     @JRubyMethod(name = "const_defined?", required = 1, optional = 1, compat = RUBY1_9)
