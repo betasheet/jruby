@@ -39,25 +39,66 @@
  ***** END LICENSE BLOCK *****/
 package org.jruby;
 
+import static org.jruby.internal.runtime.GlobalVariable.Scope.GLOBAL;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
+import java.net.BindException;
+import java.nio.channels.ClosedChannelException;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.Stack;
+import java.util.Vector;
+import java.util.WeakHashMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+
 import jnr.constants.Constant;
 import jnr.constants.ConstantSet;
 import jnr.constants.platform.Errno;
 import jnr.posix.POSIX;
 import jnr.posix.POSIXFactory;
+
 import org.jcodings.Encoding;
 import org.joda.time.DateTimeZone;
 import org.jruby.RubyInstanceConfig.CompileMode;
 import org.jruby.ast.Node;
 import org.jruby.ast.RootNode;
 import org.jruby.ast.executable.AbstractScript;
+import org.jruby.ast.executable.RubiniusRunner;
 import org.jruby.ast.executable.RuntimeCache;
 import org.jruby.ast.executable.Script;
+import org.jruby.ast.executable.YARVCompiledRunner;
 import org.jruby.common.IRubyWarnings.ID;
 import org.jruby.common.RubyWarnings;
 import org.jruby.compiler.ASTCompiler;
 import org.jruby.compiler.ASTInspector;
 import org.jruby.compiler.JITCompiler;
+import org.jruby.compiler.NotCompilableException;
 import org.jruby.compiler.impl.StandardASMCompiler;
+import org.jruby.compiler.yarv.StandardYARVCompiler;
 import org.jruby.evaluator.ASTInterpreter;
 import org.jruby.exceptions.JumpException;
 import org.jruby.exceptions.MainExitException;
@@ -71,13 +112,16 @@ import org.jruby.ext.jruby.JRubyConfigLibrary;
 import org.jruby.internal.runtime.GlobalVariables;
 import org.jruby.internal.runtime.ThreadService;
 import org.jruby.internal.runtime.ValueAccessor;
+import org.jruby.internal.runtime.methods.CallConfiguration;
 import org.jruby.internal.runtime.methods.DynamicMethod;
+import org.jruby.internal.runtime.methods.JavaMethod;
 import org.jruby.ir.IRBuilder;
 import org.jruby.ir.IRManager;
 import org.jruby.ir.IRScope;
 import org.jruby.ir.interpreter.Interpreter;
 import org.jruby.ir.targets.JVMVisitor;
 import org.jruby.javasupport.JavaSupport;
+import org.jruby.javasupport.proxy.JavaProxyClassFactory;
 import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.management.BeanManager;
 import org.jruby.management.BeanManagerFactory;
@@ -103,6 +147,7 @@ import org.jruby.runtime.ObjectAllocator;
 import org.jruby.runtime.ObjectSpace;
 import org.jruby.runtime.RubyEvent;
 import org.jruby.runtime.ThreadContext;
+import org.jruby.runtime.Visibility;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.encoding.EncodingService;
 import org.jruby.runtime.invokedynamic.MethodNames;
@@ -113,9 +158,9 @@ import org.jruby.runtime.load.LoadService;
 import org.jruby.runtime.opto.Invalidator;
 import org.jruby.runtime.opto.OptoFactory;
 import org.jruby.runtime.profile.ProfileData;
+import org.jruby.runtime.profile.ProfileOutput;
 import org.jruby.runtime.profile.ProfilePrinter;
 import org.jruby.runtime.profile.ProfiledMethod;
-import org.jruby.runtime.profile.ProfileOutput;
 import org.jruby.runtime.scope.ManyVarsDynamicScope;
 import org.jruby.threading.DaemonThreadFactory;
 import org.jruby.util.ByteList;
@@ -133,33 +178,6 @@ import org.jruby.util.io.SelectorPool;
 import org.jruby.util.log.Logger;
 import org.jruby.util.log.LoggerFactory;
 import org.jruby.util.unsafe.UnsafeFactory;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileDescriptor;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
-import java.lang.reflect.InvocationTargetException;
-import java.net.BindException;
-import java.nio.channels.ClosedChannelException;
-import java.security.SecureRandom;
-import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
-import org.jruby.javasupport.proxy.JavaProxyClassFactory;
-
-import static org.jruby.internal.runtime.GlobalVariable.Scope.*;
-import org.jruby.internal.runtime.methods.CallConfiguration;
-import org.jruby.internal.runtime.methods.JavaMethod;
-import org.jruby.runtime.Visibility;
 
 /**
  * The Ruby object represents the top-level of a JRuby "instance" in a given VM.
@@ -457,6 +475,8 @@ public final class Ruby {
         try {
             context.setFileAndLine(node.getPosition());
             return runInterpreter(node);
+            
+            //return runNormally(node, false);
         } finally {
             context.setFileAndLine(oldFile, oldLine);
         }
@@ -509,26 +529,34 @@ public final class Ruby {
             return;
         }
         
-        Node scriptNode = parseFromMain(inputStream, filename);
+        if(config.isYARVEnabled()) {
+            if (config.isShowBytecode()) System.err.print("error: bytecode printing only works with JVM bytecode");
+            new YARVCompiledRunner(this, inputStream, filename).run();
+        } else if(config.isRubiniusEnabled()) {
+            if (config.isShowBytecode()) System.err.print("error: bytecode printing only works with JVM bytecode");
+            new RubiniusRunner(this, inputStream, filename).run();
+        } else {
+            Node scriptNode = parseFromMain(inputStream, filename);
+            
+            // done with the stream, shut it down
+            try {inputStream.close();} catch (IOException ioe) {}
+            
+            ThreadContext context = getCurrentContext();
 
-        // done with the stream, shut it down
-        try {inputStream.close();} catch (IOException ioe) {}
+            String oldFile = context.getFile();
+            int oldLine = context.getLine();
+            try {
+                context.setFileAndLine(scriptNode.getPosition());
 
-        ThreadContext context = getCurrentContext();
-
-        String oldFile = context.getFile();
-        int oldLine = context.getLine();
-        try {
-            context.setFileAndLine(scriptNode.getPosition());
-
-            if (config.isAssumePrinting() || config.isAssumeLoop()) {
-                runWithGetsLoop(scriptNode, config.isAssumePrinting(), config.isProcessLineEnds(),
-                        config.isSplit());
-            } else {
-                runNormally(scriptNode);
+                if (config.isAssumePrinting() || config.isAssumeLoop()) {
+                    runWithGetsLoop(scriptNode, config.isAssumePrinting(), config.isProcessLineEnds(),
+                            config.isSplit(), config.isYARVCompileEnabled());
+                } else {
+                    runNormally(scriptNode, config.isYARVCompileEnabled());
+                }
+            } finally {
+                context.setFileAndLine(oldFile, oldLine);
             }
-        } finally {
-            context.setFileAndLine(oldFile, oldLine);
         }
     }
 
@@ -550,25 +578,6 @@ public final class Ruby {
             return parseFileFromMain(inputStream, filename, getCurrentContext().getCurrentScope());
         }
     }
-
-    /**
-     * Run the given script with a "while gets; end" loop wrapped around it.
-     * This is primarily used for the -n command-line flag, to allow writing
-     * a short script that processes input lines using the specified code.
-     *
-     * @param scriptNode The root node of the script to execute
-     * @param printing Whether $_ should be printed after each loop (as in the
-     * -p command-line flag)
-     * @param processLineEnds Whether line endings should be processed by
-     * setting $\ to $/ and <code>chop!</code>ing every line read
-     * @param split Whether to split each line read using <code>String#split</code>
-     * bytecode before executing.
-     * @return The result of executing the specified script
-     */
-    @Deprecated
-    public IRubyObject runWithGetsLoop(Node scriptNode, boolean printing, boolean processLineEnds, boolean split, boolean unused) {
-        return runWithGetsLoop(scriptNode, printing, processLineEnds, split);
-    }
     
     /**
      * Run the given script with a "while gets; end" loop wrapped around it.
@@ -581,20 +590,24 @@ public final class Ruby {
      * @param processLineEnds Whether line endings should be processed by
      * setting $\ to $/ and <code>chop!</code>ing every line read
      * @param split Whether to split each line read using <code>String#split</code>
+     * @param yarvCompile Whether to compile the target script to YARV (Ruby 1.9)
      * bytecode before executing.
      * @return The result of executing the specified script
      */
-    public IRubyObject runWithGetsLoop(Node scriptNode, boolean printing, boolean processLineEnds, boolean split) {
+    public IRubyObject runWithGetsLoop(Node scriptNode, boolean printing, boolean processLineEnds, boolean split, boolean yarvCompile) {
         ThreadContext context = getCurrentContext();
         
         Script script = null;
+        YARVCompiledRunner runner = null;
         boolean compile = getInstanceConfig().getCompileMode().shouldPrecompileCLI();
-        if (compile) {
+        if (compile || !yarvCompile) {
             script = tryCompile(scriptNode);
             if (compile && script == null) {
                 // terminate; tryCompile will have printed out an error and we're done
                 return getNil();
             }
+        } else if (yarvCompile) {
+            runner = tryCompileYarv(scriptNode);
         }
         
         if (processLineEnds) {
@@ -619,6 +632,8 @@ public final class Ruby {
 
                         if (script != null) {
                             runScriptBody(script);
+                        } else if (runner != null) {
+                            runYarv(runner);
                         } else {
                             runInterpreterBody(scriptNode);
                         }
@@ -642,32 +657,25 @@ public final class Ruby {
         
         return getNil();
     }
-
-    /**
-     * Run the specified script without any of the loop-processing wrapper
-     * code.
-     *
-     * @param scriptNode The root node of the script to be executed
-     * bytecode before execution
-     * @return The result of executing the script
-     */
-    @Deprecated
-    public IRubyObject runNormally(Node scriptNode, boolean unused) {
-        return runNormally(scriptNode);
-    }
     
     /**
      * Run the specified script without any of the loop-processing wrapper
      * code.
      * 
      * @param scriptNode The root node of the script to be executed
+     * @param yarvCompile Whether to compile the script to YARV (Ruby 1.9)
      * bytecode before execution
      * @return The result of executing the script
      */
-    public IRubyObject runNormally(Node scriptNode) {
+    public IRubyObject runNormally(Node scriptNode, boolean yarvCompile) {
         Script script = null;
+        YARVCompiledRunner runner = null;
         boolean compile = getInstanceConfig().getCompileMode().shouldPrecompileCLI();
-        if (compile || config.isShowBytecode()) {
+        
+        if (yarvCompile) {
+            runner = tryCompileYarv(scriptNode);
+            // FIXME: Once 1.9 compilation is supported this should be removed
+        } else if (compile || config.isShowBytecode()) {
             script = tryCompile(scriptNode, null, new JRubyClassLoader(getJRubyClassLoader()), config.isShowBytecode());
         }
 
@@ -677,6 +685,8 @@ public final class Ruby {
             }
 
             return runScript(script);
+        } else if (runner != null) {
+            return runYarv(runner);
         } else {
             failForcedCompile(scriptNode);
             
@@ -804,6 +814,23 @@ public final class Ruby {
         return script;
     }
     
+    private YARVCompiledRunner tryCompileYarv(Node node) {
+        try {
+            StandardYARVCompiler compiler = new StandardYARVCompiler(this);
+            ASTCompiler.getYARVCompiler().compile(node, compiler);
+            org.jruby.lexer.yacc.ISourcePosition p = node.getPosition();
+            if(p == null && node instanceof org.jruby.ast.RootNode) {
+                p = ((org.jruby.ast.RootNode)node).getBodyNode().getPosition();
+            }
+            return new YARVCompiledRunner(this,compiler.getInstructionSequence("<main>",p.getFile(),"toplevel"));
+        } catch (NotCompilableException nce) {
+            System.err.println("Error -- Not compileable: " + nce.getMessage());
+            return null;
+        } catch (JumpException.ReturnJump rj) {
+            return null;
+        }
+    }
+
     public IRubyObject runScript(Script script) {
         return runScript(script, false);
     }
@@ -841,6 +868,14 @@ public final class Ruby {
             } else {
                 return ASTInterpreter.INTERPRET_ROOT(this, context, rootNode, getTopSelf(), Block.NULL_BLOCK);
             }
+        } catch (JumpException.ReturnJump rj) {
+            return (IRubyObject) rj.getValue();
+        }
+    }
+    
+    private IRubyObject runYarv(YARVCompiledRunner runner) {
+        try {
+            return runner.run();
         } catch (JumpException.ReturnJump rj) {
             return (IRubyObject) rj.getValue();
         }

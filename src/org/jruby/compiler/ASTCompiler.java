@@ -36,28 +36,116 @@ import java.util.List;
 import java.util.Map;
 
 import org.jcodings.Encoding;
-import org.jruby.RubyClass;
 import org.jruby.RubyFixnum;
 import org.jruby.RubyFloat;
 import org.jruby.RubyInstanceConfig;
 import org.jruby.RubyMatchData;
 import org.jruby.RubyString;
-import org.jruby.ast.*;
+import org.jruby.ast.AliasNode;
+import org.jruby.ast.AndNode;
+import org.jruby.ast.ArgsCatNode;
+import org.jruby.ast.ArgsNode;
+import org.jruby.ast.ArgsPushNode;
+import org.jruby.ast.ArrayNode;
+import org.jruby.ast.AttrAssignNode;
+import org.jruby.ast.BackRefNode;
+import org.jruby.ast.BeginNode;
+import org.jruby.ast.BignumNode;
+import org.jruby.ast.BinaryOperatorNode;
+import org.jruby.ast.BlockNode;
+import org.jruby.ast.BlockPassNode;
+import org.jruby.ast.BreakNode;
+import org.jruby.ast.CallNode;
+import org.jruby.ast.CaseNode;
+import org.jruby.ast.ClassNode;
+import org.jruby.ast.ClassVarAsgnNode;
+import org.jruby.ast.ClassVarDeclNode;
+import org.jruby.ast.ClassVarNode;
+import org.jruby.ast.Colon2ConstNode;
+import org.jruby.ast.Colon2MethodNode;
+import org.jruby.ast.Colon2Node;
+import org.jruby.ast.Colon3Node;
+import org.jruby.ast.ConstDeclNode;
+import org.jruby.ast.ConstNode;
+import org.jruby.ast.DAsgnNode;
+import org.jruby.ast.DNode;
+import org.jruby.ast.DRegexpNode;
+import org.jruby.ast.DSymbolNode;
+import org.jruby.ast.DVarNode;
+import org.jruby.ast.DXStrNode;
+import org.jruby.ast.DefinedNode;
+import org.jruby.ast.DefnNode;
+import org.jruby.ast.DefsNode;
+import org.jruby.ast.DotNode;
+import org.jruby.ast.EnsureNode;
+import org.jruby.ast.EvStrNode;
+import org.jruby.ast.FCallNode;
+import org.jruby.ast.FileNode;
+import org.jruby.ast.FixnumNode;
+import org.jruby.ast.FlipNode;
+import org.jruby.ast.FloatNode;
+import org.jruby.ast.ForNode;
+import org.jruby.ast.GlobalAsgnNode;
+import org.jruby.ast.GlobalVarNode;
+import org.jruby.ast.HashNode;
+import org.jruby.ast.IfNode;
+import org.jruby.ast.InstAsgnNode;
+import org.jruby.ast.InstVarNode;
+import org.jruby.ast.IterNode;
+import org.jruby.ast.ListNode;
+import org.jruby.ast.LiteralNode;
+import org.jruby.ast.LocalAsgnNode;
+import org.jruby.ast.LocalVarNode;
+import org.jruby.ast.Match2Node;
+import org.jruby.ast.Match3Node;
+import org.jruby.ast.MatchNode;
+import org.jruby.ast.ModuleNode;
+import org.jruby.ast.MultipleAsgnNode;
+import org.jruby.ast.NewlineNode;
+import org.jruby.ast.NextNode;
+import org.jruby.ast.NilNode;
+import org.jruby.ast.Node;
+import org.jruby.ast.NodeType;
+import org.jruby.ast.NotNode;
+import org.jruby.ast.NthRefNode;
+import org.jruby.ast.OpAsgnNode;
+import org.jruby.ast.OpAsgnOrNode;
+import org.jruby.ast.OpElementAsgnNode;
+import org.jruby.ast.OrNode;
+import org.jruby.ast.PostExeNode;
+import org.jruby.ast.PreExeNode;
+import org.jruby.ast.RegexpNode;
+import org.jruby.ast.RescueBodyNode;
+import org.jruby.ast.RescueNode;
+import org.jruby.ast.ReturnNode;
+import org.jruby.ast.RootNode;
+import org.jruby.ast.SClassNode;
+import org.jruby.ast.SValueNode;
+import org.jruby.ast.SelfNode;
+import org.jruby.ast.SpecialArgs;
+import org.jruby.ast.SplatNode;
+import org.jruby.ast.StarNode;
+import org.jruby.ast.StrNode;
+import org.jruby.ast.SuperNode;
+import org.jruby.ast.SymbolNode;
+import org.jruby.ast.ToAryNode;
+import org.jruby.ast.UndefNode;
+import org.jruby.ast.UntilNode;
+import org.jruby.ast.VAliasNode;
+import org.jruby.ast.VCallNode;
+import org.jruby.ast.WhenNode;
+import org.jruby.ast.WhenOneArgNode;
+import org.jruby.ast.WhileNode;
+import org.jruby.ast.XStrNode;
+import org.jruby.ast.YieldNode;
+import org.jruby.ast.ZSuperNode;
 import org.jruby.exceptions.JumpException;
-import org.jruby.internal.runtime.methods.DefaultMethod;
-import org.jruby.internal.runtime.methods.DynamicMethod;
-import org.jruby.internal.runtime.methods.DynamicMethod.NativeCall;
-import org.jruby.internal.runtime.methods.InterpretedMethod;
-import org.jruby.internal.runtime.methods.JittedMethod;
 import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.Arity;
 import org.jruby.runtime.BlockBody;
 import org.jruby.runtime.CallType;
 import org.jruby.runtime.MethodIndex;
-import org.jruby.runtime.callsite.CacheEntry;
-import org.jruby.runtime.callsite.CachingCallSite;
-import org.jruby.util.ByteList;
 import org.jruby.util.DefinedMessage;
 import org.jruby.util.StringSupport;
 
@@ -502,6 +590,10 @@ public class ASTCompiler {
                 throw new NotCompilableException("Can't compile assignment node: " + node);
         }
     }
+    
+    public static YARVNodesCompiler getYARVCompiler() {
+        return new YARVNodesCompiler();
+    }
 
     public void compileAlias(final AliasNode alias, BodyCompiler context, boolean expr) {
         CompilerCallback args = new CompilerCallback() {
@@ -510,7 +602,7 @@ public class ASTCompiler {
                 compile(alias.getOldName(), context, true);
             }
         };
-
+        
         context.defineAlias(args);
         
         // TODO: don't require pop

@@ -28,6 +28,13 @@
  ***** END LICENSE BLOCK *****/
 package org.jruby.util.cli;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import org.jruby.CompatVersion;
 import org.jruby.Ruby;
 import org.jruby.RubyInstanceConfig;
@@ -36,13 +43,6 @@ import org.jruby.runtime.profile.ProfileOutput;
 import org.jruby.util.JRubyFile;
 import org.jruby.util.KCode;
 import org.jruby.util.SafePropertyAccessor;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Encapsulated logic for processing JRuby's command-line arguments.
@@ -340,6 +340,12 @@ public class ArgumentProcessor {
                         config.setObjectSpaceEnabled(true);
                     } else if (extendedOption.equals("-C")) {
                         config.setCompileMode(RubyInstanceConfig.CompileMode.OFF);
+                    } else if (extendedOption.equals("-y")) {
+                        config.setYARVEnabled(true);
+                    } else if (extendedOption.equals("-Y")) {
+                        config.setYARVCompileEnabled(true);
+                    } else if (extendedOption.equals("-R")) {
+                        config.setRubiniusEnabled(true);
                     } else if (extendedOption.equals("-CIR")) {
                         config.setCompileMode(RubyInstanceConfig.CompileMode.OFFIR);
                     } else if (extendedOption.equals("+C")) {

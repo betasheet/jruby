@@ -1,7 +1,9 @@
 package org.jruby.util.cli;
 
 import java.util.Arrays;
+
 import jnr.posix.util.Platform;
+
 import org.jruby.CompatVersion;
 import org.jruby.RubyInstanceConfig;
 import org.jruby.runtime.Constants;
@@ -84,7 +86,10 @@ public class OutputStrings {
                 .append("  -X-O        run with ObjectSpace disabled (default; improves performance)\n")
                 .append("  -X+O        run with ObjectSpace enabled (reduces performance)\n")
                 .append("  -X-C        disable all compilation\n")
-                .append("  -X+C        force compilation of all scripts before they are run (except eval)\n");
+                .append("  -X+C        force compilation of all scripts before they are run (except eval)\n")
+                .append("  -X-y        read a YARV-compiled Ruby script and run that (EXPERIMENTAL)\n")
+                .append("  -X-Y        compile a Ruby script into YARV bytecodes and run this (EXPERIMENTAL)\n")
+                .append("  -X-R        read a Rubinius-compiled Ruby script and run that (EXPERIMENTAL)\n");
 
         return sb.toString();
     }

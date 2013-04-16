@@ -28,7 +28,6 @@
  ***** END LICENSE BLOCK *****/
 package org.jruby;
 
-import org.jruby.util.cli.ArgumentProcessor;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -56,8 +55,8 @@ import java.util.regex.Pattern;
 import org.jruby.ast.executable.Script;
 import org.jruby.compiler.ASTCompiler;
 import org.jruby.compiler.ASTCompiler19;
-import org.jruby.exceptions.MainExitException;
 import org.jruby.embed.util.SystemPropertyCatcher;
+import org.jruby.exceptions.MainExitException;
 import org.jruby.runtime.Constants;
 import org.jruby.runtime.backtrace.TraceType;
 import org.jruby.runtime.load.LoadService;
@@ -69,8 +68,9 @@ import org.jruby.util.JRubyFile;
 import org.jruby.util.KCode;
 import org.jruby.util.NormalizedFile;
 import org.jruby.util.SafePropertyAccessor;
-import org.jruby.util.cli.OutputStrings;
+import org.jruby.util.cli.ArgumentProcessor;
 import org.jruby.util.cli.Options;
+import org.jruby.util.cli.OutputStrings;
 import org.objectweb.asm.Opcodes;
 
 /**
@@ -80,6 +80,7 @@ import org.objectweb.asm.Opcodes;
  * embedding.
  */
 public class RubyInstanceConfig {
+
     public RubyInstanceConfig() {
         currentDirectory = Ruby.isSecurityRestricted() ? "/" : JRubyFile.getFileProperty("user.dir");
         samplingEnabled = SafePropertyAccessor.getBoolean("jruby.sampling.enabled", false);
@@ -897,8 +898,32 @@ public class RubyInstanceConfig {
         this.inputFieldSeparator = inputFieldSeparator;
     }
 
+    public boolean isYARVEnabled() {
+        return yarv;
+    }
+
+    public void setYARVEnabled(boolean enabled) {
+        yarv = enabled;
+    }
+
     public String getInputFieldSeparator() {
         return inputFieldSeparator;
+    }
+
+    public boolean isRubiniusEnabled() {
+        return rubinius;
+    }
+
+    public boolean isYARVCompileEnabled() {
+        return yarvCompile;
+    }
+
+    public void setRubiniusEnabled(boolean enabled) {
+        rubinius = enabled;
+    }
+
+    public void setYARVCompileEnabled(boolean enabled) {
+        yarvCompile = enabled;
     }
 
     public KCode getKCode() {
@@ -1269,6 +1294,11 @@ public class RubyInstanceConfig {
     private boolean shouldRunInterpreter = true;
     private boolean shouldPrintUsage = false;
     private boolean shouldPrintProperties=false;
+
+    private boolean yarv = false;
+    private boolean rubinius = false;
+    private boolean yarvCompile = false;
+    
     private boolean dumpConfig=false;
     private KCode kcode = KCode.NONE;
     private String recordSeparator = "\n";

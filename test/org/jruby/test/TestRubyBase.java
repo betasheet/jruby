@@ -79,7 +79,8 @@ public class TestRubyBase extends TestCase {
         runtime.getGlobalVariables().set("$stderr", lStream);
         
         runtime.runNormally(
-                runtime.parseFile(new ByteArrayInputStream(script.getBytes()), "test", runtime.getCurrentContext().getCurrentScope()));
+                runtime.parseFile(new ByteArrayInputStream(script.getBytes()), "test", runtime.getCurrentContext().getCurrentScope()), 
+                false);
         StringBuffer sb = new StringBuffer(new String(result.toByteArray()));
         for (int idx = sb.indexOf("\n"); idx != -1; idx = sb.indexOf("\n")) {
             sb.deleteCharAt(idx);
