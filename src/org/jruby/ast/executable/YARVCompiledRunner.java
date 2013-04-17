@@ -106,6 +106,7 @@ public class YARVCompiledRunner {
         }
         seq.name = internal.next().toString();
         seq.filename = internal.next().toString();
+        seq.filefullpath = internal.next().toString();
         seq.line = new Object[0]; internal.next();
         seq.type = internal.next().toString();
         seq.locals = toStringArray((IRubyObject)internal.next());

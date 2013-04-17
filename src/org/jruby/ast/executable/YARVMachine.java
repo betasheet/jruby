@@ -39,6 +39,7 @@ public class YARVMachine {
         public Object misc;
         public String name;
         public String filename;
+        public String filefullpath;
         public Object[] line;
         public String type;
 

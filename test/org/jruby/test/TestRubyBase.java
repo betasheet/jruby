@@ -32,6 +32,7 @@ package org.jruby.test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.PrintStream;
 
 import junit.framework.TestCase;
@@ -71,6 +72,15 @@ public class TestRubyBase extends TestCase {
      * @return the value printed out on  stdout and stderr by 
      **/
     protected String eval(String script) throws Exception {
+        return eval(script, false);
+    }
+
+    /**
+     * evaluate a string and returns the standard output.
+     * @param script the String to eval as a String
+     * @return the value printed out on  stdout and stderr by 
+     **/
+    protected String eval(String script, boolean yarv) throws Exception {
         ByteArrayOutputStream result = new ByteArrayOutputStream();
         out = new PrintStream(result);
         RubyIO lStream = new RubyIO(runtime, out); 
@@ -80,7 +90,24 @@ public class TestRubyBase extends TestCase {
         
         runtime.runNormally(
                 runtime.parseFile(new ByteArrayInputStream(script.getBytes()), "test", runtime.getCurrentContext().getCurrentScope()), 
-                false);
+                yarv);
+        StringBuffer sb = new StringBuffer(new String(result.toByteArray()));
+        for (int idx = sb.indexOf("\n"); idx != -1; idx = sb.indexOf("\n")) {
+            sb.deleteCharAt(idx);
+        }
+        
+        return sb.toString();
+    }
+    
+    protected String runFromMain(String script) {
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        out = new PrintStream(result);
+        RubyIO lStream = new RubyIO(runtime, out); 
+        runtime.getGlobalVariables().set("$stdout", lStream);
+        runtime.getGlobalVariables().set("$>", lStream);
+        runtime.getGlobalVariables().set("$stderr", lStream);
+        
+        runtime.runFromMain(new ByteArrayInputStream(script.getBytes()), "test");
         StringBuffer sb = new StringBuffer(new String(result.toByteArray()));
         for (int idx = sb.indexOf("\n"); idx != -1; idx = sb.indexOf("\n")) {
             sb.deleteCharAt(idx);

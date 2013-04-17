@@ -39,7 +39,7 @@ public abstract class YARVInstructions {<% INSTRUCTIONS.each_with_index do |ins,
 
     public static final Map INSTS_TO_INDEX = new HashMap();
     static {<% INSTRUCTIONS.each_with_index do |ins, ix| %>
-        INSTS_TO_INDEX.put("<%= ins.name %>",new Integer(<%=ix%>));<% end %>
+        INSTS_TO_INDEX.put("<%= ins.name %>", new Integer(<%=ix%>));<% end %>
     }
     public static int instruction(String name) {
         return ((Integer)INSTS_TO_INDEX.get(name)).intValue();
