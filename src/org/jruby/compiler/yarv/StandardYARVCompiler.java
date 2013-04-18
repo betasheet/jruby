@@ -370,7 +370,7 @@ public class StandardYARVCompiler {
                 }
                 iseqval.locals = l2;
                 ADD_INSN(ret, nd_line(node), YARVInstructions.PUTNIL);
-                ADD_INSN3(ret, nd_line(node), YARVInstructions.DEFINEMETHOD, ((DefnNode)node).getName(), iseqval, 0);
+                ADD_INSN3(ret, nd_line(node), YARVInstructions.PUTISEQ, ((DefnNode)node).getName(), iseqval, 0);
                 if(!poped) {
                     ADD_INSN(ret, nd_line(node), YARVInstructions.PUTNIL);
                 }

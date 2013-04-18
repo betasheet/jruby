@@ -3,8 +3,17 @@ require "pp"
 
 $generate = false
 
+$options = {
+#  :peephole_optimization    =>true,
+#  :inline_const_cache       =>false,
+#  :specialized_instruction  =>false,
+#  :operands_unification     =>false,
+#  :instructions_unification =>false,
+#  :stack_caching            =>false,
+}
+
 def convert_to_bytecode(file)
-  iseq = RubyVM::InstructionSequence.compile_file("testscripts/" + file)
+  iseq = RubyVM::InstructionSequence.compile_file("testscripts/" + file, $options)
   if $generate
     dumped = Marshal.dump(iseq.to_a)
     bc_file = File.new("testscripts/binarycode/" + file + ".bin", 'w')

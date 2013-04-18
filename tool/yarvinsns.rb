@@ -16,6 +16,7 @@ in_def = false
 cur_def = ""
 open(insnsFile) do |f|
   f.each_line do |l|
+    l.encode!('UTF-8', 'UTF-8', :invalid => :replace)
     if !in_def && /^DEFINE_INSN$/ =~ l
       in_def = true
     else
@@ -83,35 +84,35 @@ def reformat(v)
   end
 end
 
-open(operandFile) do |f|
-  f.each do |l|
-    if /^#|__END__|^$/ =~ l.strip
-      next
-    end
-    i = Instruction.new
-    nm = l[/^[^ ]+/]
-    rest = l[nm.length+1..-1].strip
-    i.name = nm + "_op_" + rest.split(/, /).map {|n| reformat(n.downcase) }.join('_')
-    i.ops = []
-    i.pops = []
-    i.rets = []
-    instructions << i
-  end
-end
-
-open(uniFile) do |f|
-  f.each do |l|
-    if /^#|__END__|^$/ =~ l.strip
-      next
-    end
-    i = Instruction.new
-    i.name = "unified_#{l.strip.split(/ +/).join('_')}"
-    i.ops = []
-    i.pops = []
-    i.rets = []
-    instructions << i
-  end
-end
+#open(operandFile) do |f|
+#  f.each do |l|
+#    if /^#|__END__|^$/ =~ l.strip
+#      next
+#    end
+#    i = Instruction.new
+#    nm = l[/^[^ ]+/]
+#    rest = l[nm.length+1..-1].strip
+#    i.name = nm + "_op_" + rest.split(/, /).map {|n| reformat(n.downcase) }.join('_')
+#    i.ops = []
+#    i.pops = []
+#    i.rets = []
+#    instructions << i
+#  end
+#end
+#
+#open(uniFile) do |f|
+#  f.each do |l|
+#    if /^#|__END__|^$/ =~ l.strip
+#      next
+#    end
+#    i = Instruction.new
+#    i.name = "unified_#{l.strip.split(/ +/).join('_')}"
+#    i.ops = []
+#    i.pops = []
+#    i.rets = []
+#    instructions << i
+#  end
+#end
 
 INSTRUCTIONS = instructions
 
