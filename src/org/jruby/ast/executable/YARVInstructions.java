@@ -295,5 +295,6 @@ public abstract class YARVInstructions {
     public static final int VCALL_FLAG = 16;
     public static final int TAILCALL_FLAG = 32;
     public static final int TAILRECURSION_FLAG = 64;
-    public static final int SUPER = 128;
+    public static final int SUPER_FLAG = 128;
+    public static final int OPT_SEND_FLAG = 256;
 }

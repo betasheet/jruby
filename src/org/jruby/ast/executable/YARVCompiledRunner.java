@@ -32,10 +32,13 @@ import java.util.Map;
 
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
+import org.jruby.RubyClass;
 import org.jruby.RubyFile;
+import org.jruby.RubyNil;
 import org.jruby.RubyNumeric;
 import org.jruby.RubyString;
 import org.jruby.RubySymbol;
+import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -48,12 +51,11 @@ public class YARVCompiledRunner {
     private YARVMachine ym = YARVMachine.INSTANCE;
 
     private YARVMachine.InstructionSequence iseq;
-
-    private Map jumps = new IdentityHashMap();
-    private Map labels = new HashMap();
+    private RubyClass iseqClass;
 
     public YARVCompiledRunner(Ruby runtime, InputStream in, String filename) {
         this.runtime = runtime;
+        this.iseqClass = InstructionSequence.createInstructionSequence(runtime);
         byte[] first = new byte[4];
         try {
             in.read(first);
@@ -85,10 +87,11 @@ public class YARVCompiledRunner {
         if (!(arr instanceof RubyArray)) {
             throw new RuntimeException("Error when reading compiled YARV file");
         }
-        labels.clear();
-        jumps.clear();
 
-        YARVMachine.InstructionSequence seq = new YARVMachine.InstructionSequence(runtime, null,
+        Map jumps = new IdentityHashMap();
+        Map labels = new HashMap();
+
+        YARVMachine.InstructionSequence seq = new YARVMachine.InstructionSequence(runtime, iseqClass, null,
                 null, null);
         Iterator internal = (((RubyArray) arr).getList()).iterator();
         seq.magic = internal.next().toString();
@@ -112,10 +115,12 @@ public class YARVCompiledRunner {
         if (argo instanceof RubyArray) {
             List arglist = ((RubyArray) argo).getList();
             seq.args_argc = RubyNumeric.fix2int((IRubyObject) arglist.get(0));
-            seq.args_arg_opts = RubyNumeric.fix2int((IRubyObject) arglist.get(1));
-            seq.args_opt_labels = toStringArray((IRubyObject) arglist.get(2));
-            seq.args_rest = RubyNumeric.fix2int((IRubyObject) arglist.get(3));
-            seq.args_block = RubyNumeric.fix2int((IRubyObject) arglist.get(4));
+            seq.args_opt_labels = toStringArray((IRubyObject) arglist.get(1));
+            seq.args_post_len = RubyNumeric.fix2int((IRubyObject) arglist.get(2));
+            seq.args_post_start = RubyNumeric.fix2int((IRubyObject) arglist.get(3));
+            seq.args_rest = RubyNumeric.fix2int((IRubyObject) arglist.get(4));
+            seq.args_block = RubyNumeric.fix2int((IRubyObject) arglist.get(5));
+            seq.args_simple = RubyNumeric.fix2int((IRubyObject) arglist.get(5));
         } else {
             seq.args_argc = RubyNumeric.fix2int(argo);
         }
@@ -129,7 +134,7 @@ public class YARVCompiledRunner {
         for (Iterator iter = bodyl.iterator(); iter.hasNext(); i++) {
             IRubyObject is = (IRubyObject) iter.next();
             if (is instanceof RubyArray) {
-                body[real] = intoInstruction((RubyArray) is, real, seq);
+                body[real] = intoInstruction((RubyArray) is, real, seq, jumps);
                 real++;
             } else if (is instanceof RubySymbol) {
                 labels.put(is.toString(), new Integer(real + 1));
@@ -162,7 +167,7 @@ public class YARVCompiledRunner {
     }
 
     private YARVMachine.Instruction intoInstruction(RubyArray obj, int n,
-            YARVMachine.InstructionSequence iseq) {
+            YARVMachine.InstructionSequence iseq, Map jumps) {
         List internal = obj.getList();
         String name = internal.get(0).toString();
         int instruction = YARVMachine.instruction(name);
@@ -187,6 +192,9 @@ public class YARVCompiledRunner {
             if (instruction == YARVInstructions.SEND) {
                 i.i_op1 = RubyNumeric.fix2int((IRubyObject) internal.get(2));
                 i.i_op3 = RubyNumeric.fix2int((IRubyObject) internal.get(4));
+                if (!((IRubyObject) internal.get(3) instanceof RubyNil)){
+                    i.iseq_op = transformIntoSequence((IRubyObject) internal.get(3));
+                }
             }
             if (instruction == YARVInstructions.PUTISEQ) {
                 i.iseq_op = transformIntoSequence((IRubyObject) internal.get(1));

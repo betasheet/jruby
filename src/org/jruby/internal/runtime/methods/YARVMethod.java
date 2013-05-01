@@ -57,7 +57,7 @@ public class YARVMethod extends DynamicMethod {
         this.staticScope = staticScope;
         this.iseq = iseq;
 
-        boolean opts = iseq.args_arg_opts > 0 || iseq.args_rest > 0;
+        boolean opts = iseq.getOptArgsLength() > 0 || iseq.args_rest > 0;
         boolean req = iseq.args_argc > 0;
         if(!req && !opts) {
             this.arity = Arity.noArguments();
@@ -105,7 +105,7 @@ public class YARVMethod extends DynamicMethod {
 
         int expectedArgsCount = iseq.args_argc;
         int restArg = iseq.args_rest;
-        boolean hasOptArgs = iseq.args_arg_opts > 0;
+        boolean hasOptArgs = iseq.getOptArgsLength() > 0;
 
         if (expectedArgsCount > args.length) {
             throw runtime.newArgumentError("Wrong # of arguments(" + args.length + " for " + expectedArgsCount + ")");
@@ -119,14 +119,14 @@ public class YARVMethod extends DynamicMethod {
 
     private IRubyObject[] prepareOptOrRestArgs(ThreadContext context, Ruby runtime, IRubyObject[] args, int expectedArgsCount, int restArg, boolean hasOptArgs) {
         if (restArg == 0 && hasOptArgs) {
-            int opt = expectedArgsCount + iseq.args_arg_opts;
+            int opt = expectedArgsCount + iseq.getOptArgsLength();
 
             if (opt < args.length) {
                 throw runtime.newArgumentError("wrong # of arguments(" + args.length + " for " + opt + ")");
             }
         }
         
-        int count = expectedArgsCount + iseq.args_arg_opts + iseq.args_rest;
+        int count = expectedArgsCount + iseq.getOptArgsLength() + iseq.args_rest;
 
         ArrayList<IRubyObject> allArgs = new ArrayList<IRubyObject>();
         

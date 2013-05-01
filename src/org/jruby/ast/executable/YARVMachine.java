@@ -1,28 +1,23 @@
 package org.jruby.ast.executable;
 
+import org.jruby.MetaClass;
 import org.jruby.Ruby;
+import org.jruby.RubyArray;
 import org.jruby.RubyBignum;
 import org.jruby.RubyClass;
 import org.jruby.RubyFixnum;
 import org.jruby.RubyHash;
 import org.jruby.RubyModule;
+import org.jruby.RubyObject;
 import org.jruby.RubyString;
-import org.jruby.MetaClass;
-import org.jruby.RubySymbol;
+import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.parser.StaticScope;
-import org.jruby.parser.LocalStaticScope;
 import org.jruby.runtime.CallSite;
 import org.jruby.runtime.CallType;
-import org.jruby.runtime.ThreadContext;
-import org.jruby.runtime.Visibility;
-import org.jruby.runtime.builtin.IRubyObject;
-import org.jruby.runtime.builtin.RubyJavaObject;
-import org.jruby.common.IRubyWarnings.ID;
-import org.jruby.internal.runtime.methods.YARVMethod;
-import org.jruby.internal.runtime.methods.WrapperMethod;
-import org.jruby.javasupport.JavaObject;
-import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.runtime.MethodIndex;
+import org.jruby.runtime.ObjectAllocator;
+import org.jruby.runtime.ThreadContext;
+import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.scope.ManyVarsDynamicScope;
 
 public class YARVMachine {
@@ -34,7 +29,7 @@ public class YARVMachine {
         return YARVInstructions.instruction(name);
     }
 
-    public static class InstructionSequence {
+    public static class InstructionSequence extends RubyObject {
         public String magic;
         public int major;
         public int minor;
@@ -49,16 +44,20 @@ public class YARVMachine {
         public String[] locals;
 
         public int args_argc;
-        public int args_arg_opts;
         public String[] args_opt_labels;
+        public int args_post_len;
+        public int args_post_start;
         public int args_rest;
         public int args_block;
+        public int args_simple;
 
         public Object[] exception;
 
         public Instruction[] body;
 
-        public InstructionSequence(Ruby runtime, String name, String file, String type) {
+        public InstructionSequence(Ruby runtime, RubyClass metaClass, String name, String file, String type) {
+            super(runtime, metaClass);
+            
             magic = "YARVInstructionSimpledataFormat";
             major = 1;
             minor = 1;
@@ -70,8 +69,25 @@ public class YARVMachine {
             this.type = type;
             this.locals = new String[0];
             this.args_argc = 0;
-            this.args_arg_opts = 0;
             this.exception = new Object[0];
+        }
+        
+        public static RubyClass createInstructionSequence(Ruby runtime) {
+            RubyClass iseq = runtime.defineClass(
+                    "InstructionSequence",
+                    runtime.getClass("Data"),
+                    ObjectAllocator.NOT_ALLOCATABLE_ALLOCATOR);
+            
+            iseq.defineAnnotatedMethods(InstructionSequence.class);
+            
+            return iseq;
+        }
+
+        /**
+         * @return
+         */
+        public int getOptArgsLength() {
+            return args_opt_labels == null ? 0 : args_opt_labels.length;
         }
     }
 
@@ -212,6 +228,16 @@ public class YARVMachine {
         
         return arr;
     }
+    
+    /**
+     * Push top arr.length values from supplied arr onto stack.
+     * 
+     * @param arr contains elements to be pushed to the stack
+     */
+    private void pushArray(RubyArray arr) {
+        System.arraycopy(arr.toJavaArrayUnsafe(), 0, stack, stackTop, arr.getLength());
+        stackTop += arr.getLength();
+    }
 
     /**
      * set the nth stack value to value
@@ -272,13 +298,15 @@ public class YARVMachine {
     public IRubyObject exec(ThreadContext context, IRubyObject self, Instruction[] bytecodes) {
         Ruby runtime = context.getRuntime();
         
+        RubyClass vmCore = YARVVMCore.createYARVVMCore(runtime);
+        
         // Where this frames stack begins.
         int stackStart = stackTop;
         int ip = 0;
         IRubyObject other;
 
         yarvloop: while (ip < bytecodes.length) {
-            System.err.println("Executing: " + YARVInstructions.name(bytecodes[ip].bytecode));
+            //System.err.println("Executing: " + YARVInstructions.name(bytecodes[ip].bytecode));
             switch (bytecodes[ip].bytecode) {
             case YARVInstructions.NOP:
                 break;
@@ -351,8 +379,7 @@ public class YARVMachine {
             case YARVInstructions.PUTSPECIALOBJECT:
                 //System.out.println("PUTOBJECT: " + bytecodes[ip].o_op0);
                 if (bytecodes[ip].l_op0 == 1) { // VM_SPECIAL_OBJECT_VMCORE
-                    // TODO create a ruby object representing vmcore and push it
-                    unimplemented(YARVInstructions.PUTSPECIALOBJECT);
+                    push(vmCore);
                 } else if (bytecodes[ip].l_op0 == 2) { // VM_SPECIAL_OBJECT_CBASE
                     push(context.getRubyClass());
                 } else if (bytecodes[ip].l_op0 == 3) { // VM_SPECIAL_OBJECT_CONST_BASE
@@ -362,8 +389,7 @@ public class YARVMachine {
                 }
                 break;
             case YARVInstructions.PUTISEQ:
-                // TODO use a real ruby object for the iseqs?
-                push(JavaObject.wrap(runtime, bytecodes[ip].iseq_op));
+                push(bytecodes[ip].iseq_op);
                 break;
             case YARVInstructions.PUTSTRING:
                 push(context.getRuntime().newString(bytecodes[ip].s_op0));
@@ -371,9 +397,14 @@ public class YARVMachine {
             case YARVInstructions.CONCATSTRINGS: {
                 StringBuilder concatter = new StringBuilder();
                 
-                for (int i = 0; i < bytecodes[ip].l_op0; i++) {
-                    concatter.append(pop().toString());
+//                for (int i = 0; i < bytecodes[ip].l_op0; i++) {
+//                    concatter.append(pop().toString());
+//                }
+                
+                for (int i = (int) (stackTop - bytecodes[ip].l_op0); i < stackTop; i++) {
+                    concatter.append(stack[i].toString());
                 }
+                stackTop -= bytecodes[ip].l_op0;
                 
                 push(runtime.newString(concatter.toString()));
                 break;
@@ -543,6 +574,13 @@ public class YARVMachine {
                 other = pop();
                 push(pop().callMethod(context, "<<", other));
                 break;
+            case YARVInstructions.OPT_GT:
+                op_gt(runtime, context, pop(), pop());
+                break;
+            case YARVInstructions.OPT_GE: 
+                other = pop();
+                push(pop().callMethod(context, ">=", other));
+                break;
             case YARVInstructions.OPT_AREF: 
                 other = pop();
                 push(pop().callMethod(context, "[]",other));
@@ -570,6 +608,9 @@ public class YARVMachine {
             case YARVInstructions.ANSWER: 
                 push(runtime.newFixnum(42));
                 break;
+            case YARVInstructions.TRACE:
+                //System.err.println("Trace: " + bytecodes[ip].l_op0);
+                break;
             
             default:
                 unimplemented(bytecodes[ip].bytecode);
@@ -588,9 +629,9 @@ public class YARVMachine {
             long result = receiverValue + otherValue;
             if ((~(receiverValue ^ otherValue) & (receiverValue ^ result) & RubyFixnum.SIGN_BIT) != 0) {
                 push(RubyBignum.newBignum(runtime, receiverValue).op_plus(context, other));
+            } else {
+                push(runtime.newFixnum(result));
             }
-
-            push(runtime.newFixnum(result));
         } else {
             push(receiver.callMethod(context, "+", other));
         }
@@ -603,9 +644,9 @@ public class YARVMachine {
             long result = receiverValue - otherValue;
             if ((~(receiverValue ^ otherValue) & (receiverValue ^ result) & RubyFixnum.SIGN_BIT) != 0) {
                 push(RubyBignum.newBignum(runtime, receiverValue).op_minus(context, other));
+            } else {
+                push(runtime.newFixnum(result));
             }
-
-            push(runtime.newFixnum(result));
         } else {
             push(receiver.callMethod(context, "-", other));
         }
@@ -622,6 +663,17 @@ public class YARVMachine {
         }
     }
 
+    private void op_gt(Ruby runtime, ThreadContext context, IRubyObject other, IRubyObject receiver) {
+        if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+            long receiverValue = ((RubyFixnum) receiver).getLongValue();
+            long otherValue = ((RubyFixnum) other).getLongValue();
+            
+            push(runtime.newBoolean(receiverValue > otherValue));
+        } else {
+            push(receiver.callMethod(context, ">", other));
+        }
+    }
+
     private int send(Ruby runtime, ThreadContext context, IRubyObject self, Instruction[] bytecodes, int stackStart, int ip) {
         Instruction instruction = bytecodes[ip];
         String name = instruction.s_op0;
@@ -631,6 +683,18 @@ public class YARVMachine {
         // ENEBO: We need to define a YarvBlock
         //Instruction[] blockBytecodes = bytecodes[ip].ins_op;
         // TODO: block stuff
+        InstructionSequence blockIseq = bytecodes[ip].iseq_op;
+        if (blockIseq != null) {
+            System.err.println("block support not implemented");
+        } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
+            System.err.println("block arg support not implemented");
+        }
+        
+        if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0){
+            RubyArray splatArray = (RubyArray) pop();
+            size += splatArray.getLength() - 1;
+            pushArray(splatArray);
+        }
 
         IRubyObject[] args;
         if (size == 0) {
@@ -649,19 +713,25 @@ public class YARVMachine {
             if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
                 recv = pop();
                 callType = CallType.NORMAL;
+                if (instruction.callAdapter == null) {
+                    instruction.callAdapter = MethodIndex.getCallSite(name.intern());
+                }
             } else {
                 pop();
                 recv = self;
                 callType = CallType.FUNCTIONAL;
+                if (instruction.callAdapter == null) {
+                    instruction.callAdapter = MethodIndex.getFunctionalCallSite(name.intern());
+                }
+                
             }
         } else {
             pop();
             recv = self;
             callType = CallType.VARIABLE;
-        }
-        
-        if (instruction.callAdapter == null) {
-            instruction.callAdapter = MethodIndex.getCallSite(name.intern());
+            if (instruction.callAdapter == null) {
+                instruction.callAdapter = MethodIndex.getVariableCallSite(name.intern());
+            }
         }
         
         if (TAILCALL_OPT && (bytecodes[ip+1].bytecode == YARVInstructions.LEAVE || 

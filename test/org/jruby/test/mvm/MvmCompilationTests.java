@@ -50,6 +50,7 @@ public class MvmCompilationTests extends TestRubyBase {
             throws Exception {
         RubyInstanceConfig cfg = new RubyInstanceConfig();
         cfg.setArgv(params);
+        cfg.setCompileMode(RubyInstanceConfig.CompileMode.OFF);
         runtime = Ruby.newInstance(cfg);
 
         String contents = readFile(fileName);
