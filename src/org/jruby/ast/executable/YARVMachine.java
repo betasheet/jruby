@@ -9,14 +9,21 @@ import org.jruby.RubyFixnum;
 import org.jruby.RubyHash;
 import org.jruby.RubyModule;
 import org.jruby.RubyObject;
+import org.jruby.RubyRange;
 import org.jruby.RubyString;
 import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.parser.StaticScope;
+import org.jruby.runtime.Arity;
+import org.jruby.runtime.Binding;
+import org.jruby.runtime.Block;
+import org.jruby.runtime.BlockBody;
 import org.jruby.runtime.CallSite;
 import org.jruby.runtime.CallType;
 import org.jruby.runtime.MethodIndex;
 import org.jruby.runtime.ObjectAllocator;
 import org.jruby.runtime.ThreadContext;
+import org.jruby.runtime.Visibility;
+import org.jruby.runtime.YARVBlockBody;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.scope.ManyVarsDynamicScope;
 
@@ -38,7 +45,7 @@ public class YARVMachine {
         public String name;
         public String filename;
         public String filefullpath;
-        public Object[] line;
+        public int line;
         public String type;
 
         public String[] locals;
@@ -65,7 +72,7 @@ public class YARVMachine {
             misc = runtime.getNil();
             this.name = name;
             this.filename = file;
-            this.line = new Object[0];
+            this.line = 0;
             this.type = type;
             this.locals = new String[0];
             this.args_argc = 0;
@@ -322,6 +329,12 @@ public class YARVMachine {
             case YARVInstructions.SETLOCAL:
                 context.getCurrentScope().setValue((int) bytecodes[ip].l_op0, pop(), 0);
                 break;
+            case YARVInstructions.GETDYNAMIC:
+                push(context.getCurrentScope().getValue((int) bytecodes[ip].l_op0, (int) bytecodes[ip].l_op1));
+                break;
+            case YARVInstructions.SETDYNAMIC:
+                context.getCurrentScope().setValue((int) bytecodes[ip].l_op0, pop(), (int) bytecodes[ip].l_op1);
+                break;
             case YARVInstructions.GETINSTANCEVARIABLE:
                 push(self.getInstanceVariables().fastGetInstanceVariable(bytecodes[ip].s_op0));
                 break;
@@ -417,6 +430,12 @@ public class YARVMachine {
                 break;
             case YARVInstructions.NEWARRAY:
                 push(runtime.newArrayNoCopy(popArray(new IRubyObject[(int) bytecodes[ip].l_op0])));
+                break;
+            case YARVInstructions.NEWRANGE:
+                // high, low, flag
+                IRubyObject end = pop();
+                IRubyObject begin = pop();
+                push(RubyRange.newRange(runtime, context, begin, end, bytecodes[ip].l_op0 != 0));
                 break;
             case YARVInstructions.DUPARRAY:
                 push(bytecodes[ip].o_op0.dup());
@@ -611,6 +630,8 @@ public class YARVMachine {
             case YARVInstructions.TRACE:
                 //System.err.println("Trace: " + bytecodes[ip].l_op0);
                 break;
+                
+            // TODO getdynamic / setdynamic
             
             default:
                 unimplemented(bytecodes[ip].bytecode);
@@ -680,12 +701,42 @@ public class YARVMachine {
         int size = instruction.i_op1;
         int flags = instruction.i_op3;
         
+        Block block = null;
+        
         // ENEBO: We need to define a YarvBlock
         //Instruction[] blockBytecodes = bytecodes[ip].ins_op;
         // TODO: block stuff
         InstructionSequence blockIseq = bytecodes[ip].iseq_op;
         if (blockIseq != null) {
-            System.err.println("block support not implemented");
+            //System.err.println("block support not implemented");
+            
+            // TODO argumentType array (for lambdas?)
+            boolean opts = blockIseq.getOptArgsLength() > 0 || blockIseq.args_rest > 0;
+            boolean req = blockIseq.args_argc > 0;
+            Arity arity;
+            int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
+            if(!req && !opts) {
+                arity = Arity.noArguments();
+                argumentType = BlockBody.ZERO_ARGS;
+            } else if(req && !opts) {
+                arity = Arity.fixed(blockIseq.args_argc);
+            } else if(opts && !req) {
+                arity = Arity.optional();
+                if (blockIseq.args_rest > 0 && blockIseq.getOptArgsLength() <= 0){
+                    argumentType = BlockBody.SINGLE_RESTARG;
+                }
+            } else {
+                arity = Arity.required(blockIseq.args_argc);
+            }
+            
+            StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(context.getCurrentStaticScope());
+            scope.setVariables(blockIseq.locals);
+            // TODO when evaluating method call, iteration has to proceed and set argument variables accordingly.
+            BlockBody blockBody = new YARVBlockBody(scope, arity, argumentType, blockIseq);
+
+            Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+            
+            block = new Block(blockBody, binding);
         } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
             System.err.println("block arg support not implemented");
         }
@@ -744,7 +795,11 @@ public class YARVMachine {
                 context.getCurrentScope().getValues()[i] = args[i];
             }
         } else {
-            push(instruction.callAdapter.call(context, self, recv, args));
+            if (block == null){
+                push(instruction.callAdapter.call(context, self, recv, args));
+            } else {
+                push(instruction.callAdapter.call(context, self, recv, args, block));
+            }
             //push(recv.callMethod(context, name, args, callType));
         }
         

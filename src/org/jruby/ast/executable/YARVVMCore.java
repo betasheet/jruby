@@ -33,7 +33,6 @@ import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.common.IRubyWarnings.ID;
 import org.jruby.internal.runtime.methods.WrapperMethod;
 import org.jruby.internal.runtime.methods.YARVMethod;
-import org.jruby.parser.LocalStaticScope;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.ObjectAllocator;
 import org.jruby.runtime.ThreadContext;
@@ -62,6 +61,7 @@ public class YARVVMCore extends RubyObject {
             IRubyObject arg0, IRubyObject arg1, IRubyObject arg2) {
         // VALUE cbase, VALUE sym1, VALUE sym2
 
+        System.out.println("unimplemented: core#set_method_alias");
         // TODO unimplemented
         return context.nil;
     }
@@ -71,6 +71,7 @@ public class YARVVMCore extends RubyObject {
             IRubyObject arg0, IRubyObject arg1) {
         // VALUE sym1, VALUE sym2
 
+        System.out.println("unimplemented: core#set_variable_alias");
         // TODO unimplemented
         return context.nil;
     }
@@ -80,6 +81,7 @@ public class YARVVMCore extends RubyObject {
             IRubyObject arg0, IRubyObject arg1) {
         // VALUE cbase, VALUE sym
 
+        System.out.println("unimplemented: core#undef_method");
         // TODO unimplemented
         return context.nil;
     }
@@ -101,7 +103,7 @@ public class YARVVMCore extends RubyObject {
 
         if (containingClass == runtime.getObject() && mname == "initialize") {
             runtime.getWarnings().warn(ID.REDEFINING_DANGEROUS,
-                    "redefining Object#initialize may cause infinite loop", "Object#initialize");
+                    "redefining Object#initialize may cause infinite loop");
         }
 
         Visibility visibility = context.getCurrentVisibility();
@@ -117,8 +119,8 @@ public class YARVVMCore extends RubyObject {
                         + attachedObject.getType());
             }
         }
-
-        StaticScope sco = new LocalStaticScope(null);
+        
+        StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(null);
         sco.setVariables(iseq.locals);
         YARVMethod newMethod = new YARVMethod(containingClass, iseq, sco,
                 visibility);
@@ -150,6 +152,7 @@ public class YARVVMCore extends RubyObject {
             IRubyObject arg0, IRubyObject arg1, IRubyObject arg2) {
         // VALUE cbase, VALUE sym, VALUE iseqval
 
+        System.out.println("unimplemented: core#define_singleton_method");
         // TODO unimplemented
         return context.nil;
     }
@@ -159,6 +162,7 @@ public class YARVVMCore extends RubyObject {
             IRubyObject arg0) {
         // VALUE iseqval
 
+        System.out.println("unimplemented: core#set_postexe");
         // TODO unimplemented
         return context.nil;
     }

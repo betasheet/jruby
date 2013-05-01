@@ -33,6 +33,7 @@ import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyModule;
 import org.jruby.ast.executable.YARVMachine;
+import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.exceptions.JumpException;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.Arity;
@@ -78,7 +79,7 @@ public class YARVMethod extends DynamicMethod {
         callConfig.pre(context, self, klazz, name, block, staticScope);
         
         try {
-            prepareArguments(context, runtime, args);
+            args = prepareArguments(iseq, context, runtime, args);
             getArity().checkArity(runtime, args);
 
             if (runtime.hasEventHooks()) traceCall(context, runtime, name);
@@ -100,7 +101,7 @@ public class YARVMethod extends DynamicMethod {
         }
     }
 
-    private void prepareArguments(ThreadContext context, Ruby runtime, IRubyObject[] args) {
+    public static IRubyObject[] prepareArguments(InstructionSequence iseq, ThreadContext context, Ruby runtime, IRubyObject[] args) {
         context.setFileAndLine(iseq.filename, -1);
 
         int expectedArgsCount = iseq.args_argc;
@@ -113,11 +114,12 @@ public class YARVMethod extends DynamicMethod {
 
         // optArgs and restArgs require more work, so isolate them and ArrayList creation here
         if (hasOptArgs || restArg != -1) {
-            prepareOptOrRestArgs(context, runtime, args, expectedArgsCount, restArg, hasOptArgs);
+            return prepareOptOrRestArgs(iseq, context, runtime, args, expectedArgsCount, restArg, hasOptArgs);
         }
+        return args;
     }
 
-    private IRubyObject[] prepareOptOrRestArgs(ThreadContext context, Ruby runtime, IRubyObject[] args, int expectedArgsCount, int restArg, boolean hasOptArgs) {
+    private static IRubyObject[] prepareOptOrRestArgs(InstructionSequence iseq, ThreadContext context, Ruby runtime, IRubyObject[] args, int expectedArgsCount, int restArg, boolean hasOptArgs) {
         if (restArg == 0 && hasOptArgs) {
             int opt = expectedArgsCount + iseq.getOptArgsLength();
 

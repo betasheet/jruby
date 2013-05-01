@@ -91,8 +91,8 @@ public class YARVCompiledRunner {
         Map jumps = new IdentityHashMap();
         Map labels = new HashMap();
 
-        YARVMachine.InstructionSequence seq = new YARVMachine.InstructionSequence(runtime, iseqClass, null,
-                null, null);
+        YARVMachine.InstructionSequence seq = new YARVMachine.InstructionSequence(runtime,
+                iseqClass, null, null, null);
         Iterator internal = (((RubyArray) arr).getList()).iterator();
         seq.magic = internal.next().toString();
         seq.major = RubyNumeric.fix2int((IRubyObject) internal.next());
@@ -107,8 +107,7 @@ public class YARVCompiledRunner {
         seq.name = internal.next().toString();
         seq.filename = internal.next().toString();
         seq.filefullpath = internal.next().toString();
-        seq.line = new Object[0];
-        internal.next();
+        seq.line = RubyNumeric.fix2int((IRubyObject) internal.next());
         seq.type = internal.next().toString();
         seq.locals = toStringArray((IRubyObject) internal.next());
         IRubyObject argo = (IRubyObject) internal.next();
@@ -120,7 +119,7 @@ public class YARVCompiledRunner {
             seq.args_post_start = RubyNumeric.fix2int((IRubyObject) arglist.get(3));
             seq.args_rest = RubyNumeric.fix2int((IRubyObject) arglist.get(4));
             seq.args_block = RubyNumeric.fix2int((IRubyObject) arglist.get(5));
-            seq.args_simple = RubyNumeric.fix2int((IRubyObject) arglist.get(5));
+            seq.args_simple = RubyNumeric.fix2int((IRubyObject) arglist.get(6));
         } else {
             seq.args_argc = RubyNumeric.fix2int(argo);
         }
@@ -185,21 +184,24 @@ public class YARVCompiledRunner {
             } else if (first instanceof RubyNumeric) {
                 i.l_op0 = RubyNumeric.fix2long(first);
             }
-            
-            if (instruction == YARVInstructions.GETINLINECACHE || instruction == YARVInstructions.ONCEINLINECACHE) {
+
+            if (instruction == YARVInstructions.GETINLINECACHE
+                    || instruction == YARVInstructions.ONCEINLINECACHE
+                    || instruction == YARVInstructions.GETDYNAMIC
+                    || instruction == YARVInstructions.SETDYNAMIC) {
                 i.l_op1 = RubyNumeric.fix2long((IRubyObject) internal.get(2));
             }
             if (instruction == YARVInstructions.SEND) {
                 i.i_op1 = RubyNumeric.fix2int((IRubyObject) internal.get(2));
                 i.i_op3 = RubyNumeric.fix2int((IRubyObject) internal.get(4));
-                if (!((IRubyObject) internal.get(3) instanceof RubyNil)){
+                if (!((IRubyObject) internal.get(3) instanceof RubyNil)) {
                     i.iseq_op = transformIntoSequence((IRubyObject) internal.get(3));
                 }
             }
             if (instruction == YARVInstructions.PUTISEQ) {
                 i.iseq_op = transformIntoSequence((IRubyObject) internal.get(1));
             }
-            
+
             if (isJump(instruction)) {
                 i.index = n;
                 jumps.put(i, internal.get(1).toString());

@@ -764,7 +764,8 @@ public class StandardYARVCompiler {
     }
 
     public YARVMachine.InstructionSequence getInstructionSequence(String name, String filename, String level) {
-        iseq = new YARVMachine.InstructionSequence(runtime, name, filename, level);
+        // TODO meta class should not be null in this call. need to register it centrally.
+        iseq = new YARVMachine.InstructionSequence(runtime, null, name, filename, level);
         List l = new ArrayList();
         Map jumps = new IdentityHashMap();
         Map labels = new IdentityHashMap();
