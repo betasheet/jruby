@@ -122,6 +122,7 @@ public class YARVVMCore extends RubyObject {
         
         StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(null);
         sco.setVariables(iseq.locals);
+        sco.yarvIseqLocalSize = iseq.local_size;
         YARVMethod newMethod = new YARVMethod(containingClass, iseq, sco,
                 visibility);
 

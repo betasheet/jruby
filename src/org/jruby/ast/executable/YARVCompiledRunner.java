@@ -34,6 +34,7 @@ import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyClass;
 import org.jruby.RubyFile;
+import org.jruby.RubyHash;
 import org.jruby.RubyNil;
 import org.jruby.RubyNumeric;
 import org.jruby.RubyString;
@@ -79,6 +80,7 @@ public class YARVCompiledRunner {
     public IRubyObject run() {
         ThreadContext context = runtime.getCurrentContext();
         StaticScope scope = runtime.getStaticScopeFactory().newLocalScope(null, iseq.locals);
+        scope.yarvIseqLocalSize = iseq.local_size;
         context.setFileAndLine(iseq.filename, -1);
         return ym.exec(context, scope, iseq.body);
     }
@@ -103,6 +105,13 @@ public class YARVCompiledRunner {
             seq.misc = null;
         } else {
             seq.misc = misc;
+            if (misc instanceof RubyHash) {
+                Object local_size = ((RubyHash) misc).get(RubySymbol.newSymbol(runtime,
+                        "local_size"));
+                if (local_size != null) {
+                    seq.local_size = ((Long) local_size).intValue();
+                }
+            }
         }
         seq.name = internal.next().toString();
         seq.filename = internal.next().toString();
@@ -110,6 +119,14 @@ public class YARVCompiledRunner {
         seq.line = RubyNumeric.fix2int((IRubyObject) internal.next());
         seq.type = internal.next().toString();
         seq.locals = toStringArray((IRubyObject) internal.next());
+        if (seq.local_size > seq.locals.length) {
+            String[] oldLocals = seq.locals;
+            seq.locals = new String[seq.local_size];
+            System.arraycopy(oldLocals, 0, seq.locals, 0, oldLocals.length);
+            for (int i = oldLocals.length; i < seq.local_size; i++) {
+                seq.locals[i] = "localvar" + i + "_" + RubyNumeric.fix2int(seq.id());
+            }
+        }
         IRubyObject argo = (IRubyObject) internal.next();
         if (argo instanceof RubyArray) {
             List arglist = ((RubyArray) argo).getList();
@@ -173,10 +190,11 @@ public class YARVCompiledRunner {
         YARVMachine.Instruction i = new YARVMachine.Instruction(instruction);
         if (internal.size() > 1) {
             IRubyObject first = (IRubyObject) internal.get(1);
-            if (instruction == YARVInstructions.GETLOCAL
-                    || instruction == YARVInstructions.SETLOCAL) {
-                i.l_op0 = (iseq.locals.length + 1) - RubyNumeric.fix2long(first);
-            } else if (instruction == YARVInstructions.PUTOBJECT
+// if (instruction == YARVInstructions.GETLOCAL
+// || instruction == YARVInstructions.SETLOCAL) {
+// i.l_op0 = (iseq.locals.length + 1) - RubyNumeric.fix2long(first);
+// } else
+            if (instruction == YARVInstructions.PUTOBJECT
                     || instruction == YARVInstructions.OPT_REGEXPMATCH1) {
                 i.o_op0 = first;
             } else if (first instanceof RubyString || first instanceof RubySymbol) {

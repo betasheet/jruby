@@ -80,6 +80,8 @@ public abstract class StaticScope implements Serializable {
     private boolean isBackrefLastlineScope = false;
     
     private DynamicScope dummyScope;
+    
+    public int yarvIseqLocalSize;
 
     public enum Type {
         LOCAL,
