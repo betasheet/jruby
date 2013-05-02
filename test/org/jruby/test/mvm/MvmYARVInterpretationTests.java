@@ -23,7 +23,9 @@ package org.jruby.test.mvm;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
@@ -36,29 +38,58 @@ import org.jruby.test.TestRubyBase;
  * @author betasheet
  */
 public class MvmYARVInterpretationTests extends TestRubyBase {
+    private final String TEST_BINARY_DIR = "mvm/testscripts/binarycode/";
+    private final String EXPECTED_OUTPUTS_DIR = "mvm/testscripts/expectedOutputs/";
+    private final String OUTPUTS_DIR = "mvm/testscripts/out_yarv/";
 
     public void testBinarytrees() throws Exception {
-        evalFile("mvm/testscripts/binarycode/binarytrees.rb.bin", new String[] { "12" },
-                "mvm/testscripts/expectedOutputs/binarytrees.rb.log");
+        evalFile("binarytrees.rb", new String[] { "10" });
     }
 
-    public void evalFile(String fileName, String[] params, String expectedOutputFileName)
+    public void testFannkuch() throws Exception {
+        evalFile("fannkuch.rb", new String[] { "8" });
+    }
+
+    public void testFasta() throws Exception {
+        evalFile("fasta.rb", new String[] { "2500" });
+    }
+
+    public void testMandelbrot() throws Exception {
+        evalFile("mandelbrot.rb", new String[] { "80" });
+    }
+
+    public void testMeteor() throws Exception {
+        evalFile("meteor.rb", new String[] { "100" });
+    }
+
+    public void testNbody() throws Exception {
+        evalFile("nbody.rb", new String[] { "5000" });
+    }
+
+    public void testSpectralnorm() throws Exception {
+        evalFile("spectralnorm.rb", new String[] { "50" });
+    }
+
+    public void evalFile(String fileName, String[] params)
             throws Exception {
         RubyInstanceConfig cfg = new RubyInstanceConfig();
         cfg.setArgv(params);
         cfg.setYARVEnabled(true);
         runtime = Ruby.newInstance(cfg);
 
-        String contents = readFile(fileName);
-        String expectedOutput = readFile(expectedOutputFileName);
-        String output = runFromMain(contents);
+        String contents = readFile(TEST_BINARY_DIR + fileName + ".bin");
+        String expectedOutput = readFile(EXPECTED_OUTPUTS_DIR + fileName + ".log");
+        String output = runFromMain(contents).trim();
+
+        writeFile(OUTPUTS_DIR + fileName + ".log", output);
         
-        StringBuffer sb = new StringBuffer(expectedOutput.trim());
-        for (int idx = sb.indexOf("\n"); idx != -1; idx = sb.indexOf("\n")) {
-            sb.deleteCharAt(idx);
-        }
-        
-        assertEquals(sb.toString(), output.trim());
+        assertEquals(expectedOutput.trim(), output);
+    }
+
+    private void writeFile(String path, String output) throws FileNotFoundException {
+        PrintWriter out = new PrintWriter(path);
+        out.print(output);
+        out.close();
     }
 
     private static String readFile(String path) throws IOException {
