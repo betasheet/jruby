@@ -49,7 +49,6 @@ import org.jruby.runtime.builtin.IRubyObject;
  */
 public class YARVCompiledRunner {
     private Ruby runtime;
-    private YARVMachine ym = YARVMachine.INSTANCE;
 
     private YARVMachine.InstructionSequence iseq;
     private RubyClass iseqClass;
@@ -81,7 +80,7 @@ public class YARVCompiledRunner {
         ThreadContext context = runtime.getCurrentContext();
         StaticScope scope = runtime.getStaticScopeFactory().newLocalScope(null, iseq.locals);
         context.setFileAndLine(iseq.filename, -1);
-        return ym.exec(context, scope, iseq.body);
+        return YARVMachine.getInstance().exec(context, scope, iseq.body);
     }
 
     private YARVMachine.InstructionSequence transformIntoSequence(IRubyObject arr) {

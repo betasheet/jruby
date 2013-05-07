@@ -78,7 +78,8 @@ public class YARVMethod extends DynamicMethod {
         
         callConfig.pre(context, self, klazz, name, block, staticScope);
 
-        int savedStackTop = YARVMachine.INSTANCE.stackTop;
+        YARVMachine ym = YARVMachine.getInstance();
+        int savedStackTop = ym.stackTop;
         
         try {
             args = prepareArguments(iseq, context, runtime, args);
@@ -91,10 +92,10 @@ public class YARVMethod extends DynamicMethod {
             // Why not setArgValues
             scope.setArgValues(args, args.length);
 
-            return YARVMachine.INSTANCE.exec(context, self, iseq.body);
+            return ym.exec(context, self, iseq.body);
         } catch (JumpException.ReturnJump rj) {
         	if (rj.getTarget() == context.getFrameJumpTarget()){
-                YARVMachine.INSTANCE.stackTop = savedStackTop;
+                ym.stackTop = savedStackTop;
         	    return (IRubyObject) rj.getValue();
         	}
             

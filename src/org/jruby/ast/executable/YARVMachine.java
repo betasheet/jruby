@@ -1,5 +1,8 @@
 package org.jruby.ast.executable;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.jruby.MetaClass;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
@@ -34,7 +37,22 @@ import org.jruby.util.RegexpOptions;
 public class YARVMachine {
     private static final boolean TAILCALL_OPT = Boolean.getBoolean("jruby.tailcall.enabled");
 
-    public static final YARVMachine INSTANCE = new YARVMachine();
+    public static List<YARVMachine> INSTANCES = new ArrayList<YARVMachine>(32);
+    
+    public static YARVMachine getInstance() {
+        int tid = (int) Thread.currentThread().getId();
+        
+        while (INSTANCES.size() <= tid) {
+            INSTANCES.add(null);
+        }
+        
+        YARVMachine machine = INSTANCES.get(tid);
+        if (machine == null){
+            INSTANCES.set(tid, machine = new YARVMachine());
+        }
+        
+        return machine;
+    }
 
     public static int instruction(String name) {
         return YARVInstructions.instruction(name);
@@ -326,8 +344,8 @@ public class YARVMachine {
         IRubyObject other;
 
         yarvloop: while (ip < bytecodes.length) {
- System.err.println("Executing: " + bytecodes[ip].toString() + " (ip=" + ip +
- ")");
+// System.err.println("Executing: " + bytecodes[ip].toString() + " (ip=" + ip +
+// ")");
             switch (bytecodes[ip].bytecode) {
             case YARVInstructions.NOP:
                 break;
@@ -493,7 +511,7 @@ public class YARVMachine {
                             callTraceFunction(runtime, context, RubyEvent.CLASS);
                         }
 
-                        YARVMachine.INSTANCE.exec(context, newClass, iseq.body);
+                        YARVMachine.getInstance().exec(context, newClass, iseq.body);
                     } finally {
                         try {
                             if (runtime.hasEventHooks()) {
