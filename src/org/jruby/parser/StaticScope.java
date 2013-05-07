@@ -30,7 +30,6 @@ package org.jruby.parser;
 
 import java.io.Serializable;
 
-import org.jruby.Ruby;
 import org.jruby.RubyModule;
 import org.jruby.RubyObject;
 import org.jruby.ast.AssignableNode;
@@ -80,8 +79,6 @@ public abstract class StaticScope implements Serializable {
     private boolean isBackrefLastlineScope = false;
     
     private DynamicScope dummyScope;
-    
-    public int yarvIseqLocalSize;
 
     public enum Type {
         LOCAL,

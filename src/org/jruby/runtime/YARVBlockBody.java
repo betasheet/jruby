@@ -62,10 +62,12 @@ public class YARVBlockBody extends ContextAwareBlockBody {
             Block.Type type, Block block) {
         IRubyObject self = prepareSelf(binding);
         Visibility oldVis = binding.getFrame().getVisibility();
+        DynamicScope localScope = context.getCurrentScope().localScope;
         Frame lastFrame = pre(context, null, binding);
+        context.getCurrentScope().localScope = localScope;
 
         try {
-            prepareArguments(context, value, context.getRuntime());
+            prepareArguments(context, value, false, context.getRuntime());
 
             return evalBlockBody(context, binding, self);
         } catch (JumpException.NextJump nj) {
@@ -83,10 +85,12 @@ public class YARVBlockBody extends ContextAwareBlockBody {
         }
 
         Visibility oldVis = binding.getFrame().getVisibility();
+        DynamicScope localScope = context.getCurrentScope().localScope;
         Frame lastFrame = pre(context, klass, binding);
+        context.getCurrentScope().localScope = localScope;
 
         try {
-            prepareArguments(context, value, context.getRuntime());
+            prepareArguments(context, value, alreadyArray, context.getRuntime());
 
             return evalBlockBody(context, binding, self);
         } catch (JumpException.NextJump nj) {
@@ -96,11 +100,13 @@ public class YARVBlockBody extends ContextAwareBlockBody {
         }
     }
 
-    private void prepareArguments(ThreadContext context, IRubyObject value, Ruby runtime) {
+    private void prepareArguments(ThreadContext context, IRubyObject value, boolean alreadyArray, Ruby runtime) {
         // TODO arg size checks
         if (argumentType != ZERO_ARGS) {
             DynamicScope scope = context.getCurrentScope();
-            if (value instanceof RubyArray) {
+            // TODO only expand array if we have more than one argument to expand it to
+            // TODO make sure all border cases are supported (rest args, ...)
+            if (value instanceof RubyArray && iseq.args_argc > 1) {
                 IRubyObject[] args = YARVMethod.prepareArguments(iseq, context, runtime,
                         ((RubyArray) value).toJavaArray());
 

@@ -60,4 +60,14 @@ public abstract class YARVInstructions {<% INSTRUCTIONS.each_with_index do |ins,
     public static final int TAILRECURSION_FLAG = 64;
     public static final int SUPER_FLAG = 128;
     public static final int OPT_SEND_FLAG = 256;
+
+    public static final int RUBY_TAG_RETURN = 0x1;
+    public static final int RUBY_TAG_BREAK = 0x2;
+    public static final int RUBY_TAG_NEXT = 0x3;
+    public static final int RUBY_TAG_RETRY = 0x4;
+    public static final int RUBY_TAG_REDO = 0x5;
+    public static final int RUBY_TAG_RAISE = 0x6;
+    public static final int RUBY_TAG_THROW = 0x7;
+    public static final int RUBY_TAG_FATAL = 0x8;
+    public static final int RUBY_TAG_MASK = 0xf;
 }

@@ -31,7 +31,7 @@ FileUtils.mkdir_p("testscripts/binarycode/")
 Dir.glob('testscripts/*.rb') do |rb_file|
   puts "converting " + rb_file
   convert_to_bytecode(File.basename(rb_file))
-  if not $generate
-    break
-  end
+  #if not $generate
+  #  break
+  #end
 end

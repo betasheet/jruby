@@ -77,6 +77,8 @@ public class YARVMethod extends DynamicMethod {
         Ruby runtime = context.getRuntime();
         
         callConfig.pre(context, self, klazz, name, block, staticScope);
+
+        int savedStackTop = YARVMachine.INSTANCE.stackTop;
         
         try {
             args = prepareArguments(iseq, context, runtime, args);
@@ -91,7 +93,10 @@ public class YARVMethod extends DynamicMethod {
 
             return YARVMachine.INSTANCE.exec(context, self, iseq.body);
         } catch (JumpException.ReturnJump rj) {
-        	if (rj.getTarget() == context.getFrameJumpTarget()) return (IRubyObject) rj.getValue();
+        	if (rj.getTarget() == context.getFrameJumpTarget()){
+                YARVMachine.INSTANCE.stackTop = savedStackTop;
+        	    return (IRubyObject) rj.getValue();
+        	}
             
        		throw rj;
         } finally {

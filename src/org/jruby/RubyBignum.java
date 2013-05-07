@@ -684,7 +684,11 @@ public class RubyBignum extends RubyInteger {
     
     @JRubyMethod(name = "|", required = 1, compat = RUBY1_9)
     public IRubyObject op_or19(ThreadContext context, IRubyObject other) {
+        try {
         return op_or(context, convertToInteger(context, other));
+        } catch (RuntimeException e) {
+            throw e;
+        }
     }
 
     /** rb_big_xor

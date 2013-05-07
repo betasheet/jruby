@@ -80,7 +80,6 @@ public class YARVCompiledRunner {
     public IRubyObject run() {
         ThreadContext context = runtime.getCurrentContext();
         StaticScope scope = runtime.getStaticScopeFactory().newLocalScope(null, iseq.locals);
-        scope.yarvIseqLocalSize = iseq.local_size;
         context.setFileAndLine(iseq.filename, -1);
         return ym.exec(context, scope, iseq.body);
     }
@@ -195,7 +194,8 @@ public class YARVCompiledRunner {
 // i.l_op0 = (iseq.locals.length + 1) - RubyNumeric.fix2long(first);
 // } else
             if (instruction == YARVInstructions.PUTOBJECT
-                    || instruction == YARVInstructions.OPT_REGEXPMATCH1) {
+                    || instruction == YARVInstructions.OPT_REGEXPMATCH1
+                    || instruction == YARVInstructions.DUPARRAY) {
                 i.o_op0 = first;
             } else if (first instanceof RubyString || first instanceof RubySymbol) {
                 i.s_op0 = first.toString();
@@ -206,18 +206,21 @@ public class YARVCompiledRunner {
             if (instruction == YARVInstructions.GETINLINECACHE
                     || instruction == YARVInstructions.ONCEINLINECACHE
                     || instruction == YARVInstructions.GETDYNAMIC
-                    || instruction == YARVInstructions.SETDYNAMIC) {
+                    || instruction == YARVInstructions.SETDYNAMIC
+                    || instruction == YARVInstructions.TOREGEXP
+                    || instruction == YARVInstructions.EXPANDARRAY) {
                 i.l_op1 = RubyNumeric.fix2long((IRubyObject) internal.get(2));
-            }
-            if (instruction == YARVInstructions.SEND) {
+            } else if (instruction == YARVInstructions.SEND) {
                 i.i_op1 = RubyNumeric.fix2int((IRubyObject) internal.get(2));
                 i.i_op3 = RubyNumeric.fix2int((IRubyObject) internal.get(4));
                 if (!((IRubyObject) internal.get(3) instanceof RubyNil)) {
                     i.iseq_op = transformIntoSequence((IRubyObject) internal.get(3));
                 }
-            }
-            if (instruction == YARVInstructions.PUTISEQ) {
+            } else if (instruction == YARVInstructions.PUTISEQ) {
                 i.iseq_op = transformIntoSequence((IRubyObject) internal.get(1));
+            } else if (instruction == YARVInstructions.DEFINECLASS) {
+                i.iseq_op = transformIntoSequence((IRubyObject) internal.get(2));
+                i.i_op2 = RubyNumeric.fix2int((IRubyObject) internal.get(3));
             }
 
             if (isJump(instruction)) {

@@ -120,9 +120,10 @@ public class YARVVMCore extends RubyObject {
             }
         }
         
-        StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(null);
+        StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(context.getCurrentStaticScope());
         sco.setVariables(iseq.locals);
-        sco.yarvIseqLocalSize = iseq.local_size;
+        sco.determineModule();
+        
         YARVMethod newMethod = new YARVMethod(containingClass, iseq, sco,
                 visibility);
 

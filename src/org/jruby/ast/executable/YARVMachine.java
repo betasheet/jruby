@@ -10,6 +10,7 @@ import org.jruby.RubyHash;
 import org.jruby.RubyModule;
 import org.jruby.RubyObject;
 import org.jruby.RubyRange;
+import org.jruby.RubyRegexp;
 import org.jruby.RubyString;
 import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.parser.StaticScope;
@@ -18,15 +19,17 @@ import org.jruby.runtime.Binding;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.BlockBody;
 import org.jruby.runtime.CallSite;
-import org.jruby.runtime.CallType;
 import org.jruby.runtime.DynamicScope;
 import org.jruby.runtime.MethodIndex;
 import org.jruby.runtime.ObjectAllocator;
+import org.jruby.runtime.RubyEvent;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.Visibility;
 import org.jruby.runtime.YARVBlockBody;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.scope.ManyVarsDynamicScope;
+import org.jruby.util.ByteList;
+import org.jruby.util.RegexpOptions;
 
 public class YARVMachine {
     private static final boolean TAILCALL_OPT = Boolean.getBoolean("jruby.tailcall.enabled");
@@ -111,6 +114,7 @@ public class YARVMachine {
         public InstructionSequence iseq_op;
         public Instruction[] ins_op;
         public int i_op3;
+        public int i_op2;
 
         public int index;
         public int methodIndex = -1;
@@ -158,7 +162,7 @@ public class YARVMachine {
     }
 
     IRubyObject[] stack = new IRubyObject[8192];
-    int stackTop = 0;
+    public int stackTop = 0;
 
     /*
      * private void printStack(String message, int fromIndex) {
@@ -256,7 +260,7 @@ public class YARVMachine {
      *            to be set
      */
     private void setn(int depth, IRubyObject value) {
-        stack[stackTop - depth] = value;
+        stack[stackTop - depth - 1] = value;
     }
 
     /**
@@ -266,7 +270,7 @@ public class YARVMachine {
      *            which element to push
      */
     private void topn(int depth) {
-        push(stack[stackTop - depth]);
+        push(stack[stackTop - depth - 1]);
     }
 
     /**
@@ -322,8 +326,8 @@ public class YARVMachine {
         IRubyObject other;
 
         yarvloop: while (ip < bytecodes.length) {
-            // System.err.println("Executing: " +
-// YARVInstructions.name(bytecodes[ip].bytecode));
+ System.err.println("Executing: " + bytecodes[ip].toString() + " (ip=" + ip +
+ ")");
             switch (bytecodes[ip].bytecode) {
             case YARVInstructions.NOP:
                 break;
@@ -334,14 +338,14 @@ public class YARVMachine {
                 runtime.getGlobalVariables().set(bytecodes[ip].s_op0, pop());
                 break;
             case YARVInstructions.GETLOCAL: {
-                DynamicScope scope = context.getCurrentScope();
-                int idx = scope.getStaticScope().yarvIseqLocalSize - (int) bytecodes[ip].l_op0;
+                DynamicScope scope = context.getCurrentScope().localScope;
+                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
                 push(scope.getValue(idx, 0));
                 break;
             }
             case YARVInstructions.SETLOCAL: {
-                DynamicScope scope = context.getCurrentScope();
-                int idx = scope.getStaticScope().yarvIseqLocalSize - (int) bytecodes[ip].l_op0;
+                DynamicScope scope = context.getCurrentScope().localScope;
+                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
                 scope.setValue(idx, pop(), 0);
                 break;
             }
@@ -351,7 +355,7 @@ public class YARVMachine {
                 if (depth > 0) {
                     scope = scope.getNthParentScope(depth);
                 }
-                int idx = scope.getStaticScope().yarvIseqLocalSize - (int) bytecodes[ip].l_op0;
+                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
                 push(scope.getValue(idx, 0));
                 break;
             }
@@ -361,29 +365,29 @@ public class YARVMachine {
                 if (depth > 0) {
                     scope = scope.getNthParentScope(depth);
                 }
-                int idx = scope.getStaticScope().yarvIseqLocalSize - (int) bytecodes[ip].l_op0;
+                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
                 scope.setValue(idx, pop(), 0);
                 break;
             }
             case YARVInstructions.GETINSTANCEVARIABLE:
-                push(self.getInstanceVariables().fastGetInstanceVariable(bytecodes[ip].s_op0));
+                push(self.getInstanceVariables().getInstanceVariable(bytecodes[ip].s_op0));
                 break;
             case YARVInstructions.SETINSTANCEVARIABLE:
-                self.getInstanceVariables().fastSetInstanceVariable(bytecodes[ip].s_op0, pop());
+                self.getInstanceVariables().setInstanceVariable(bytecodes[ip].s_op0, pop());
                 break;
             case YARVInstructions.GETCLASSVARIABLE: {
                 RubyModule rubyClass = context.getRubyClass();
                 String name = bytecodes[ip].s_op0;
 
                 if (rubyClass == null) {
-                    push(self.getMetaClass().fastGetClassVar(name));
+                    push(self.getMetaClass().getClassVar(name));
                 } else if (!rubyClass.isSingleton()) {
-                    push(rubyClass.fastGetClassVar(name));
+                    push(rubyClass.getClassVar(name));
                 } else {
                     RubyModule module = (RubyModule) (((MetaClass) rubyClass).getAttached());
 
                     if (module != null) {
-                        push(module.fastGetClassVar(name));
+                        push(module.getClassVar(name));
                     } else {
                         push(runtime.getNil());
                     }
@@ -399,16 +403,31 @@ public class YARVMachine {
                     rubyClass = (RubyModule) (((MetaClass) rubyClass).getAttached());
                 }
 
-                rubyClass.fastSetClassVar(bytecodes[ip].s_op0, pop());
+                rubyClass.setClassVar(bytecodes[ip].s_op0, pop());
                 break;
             }
-            case YARVInstructions.GETCONSTANT:
-                push(context.getConstant(bytecodes[ip].s_op0));
+            case YARVInstructions.GETCONSTANT: {
+                IRubyObject klass = pop();
+                if (klass == null || klass == runtime.getNil()) {
+                    push(context.getCurrentStaticScope().getConstant(bytecodes[ip].s_op0));
+                } else {
+                    push(((RubyModule) klass).getConstant(bytecodes[ip].s_op0));
+                }
                 break;
-            case YARVInstructions.SETCONSTANT:
-                context.setConstantInCurrent(bytecodes[ip].s_op0, pop());
-                runtime.incGlobalState();
+            }
+            case YARVInstructions.SETCONSTANT: {
+                IRubyObject klass = pop();
+                if (klass == null || klass == runtime.getNil()) {
+                    IRubyObject value = pop();
+                    context.getCurrentStaticScope().setConstant(bytecodes[ip].s_op0, value);
+                    runtime.incGlobalState();
+                } else {
+                    IRubyObject value = pop();
+                    push(((RubyModule) klass).setConstant(bytecodes[ip].s_op0, value));
+                    runtime.incGlobalState();
+                }
                 break;
+            }
             case YARVInstructions.PUTNIL:
                 push(context.getRuntime().getNil());
                 break;
@@ -420,13 +439,14 @@ public class YARVMachine {
                 push(bytecodes[ip].o_op0);
                 break;
             case YARVInstructions.PUTSPECIALOBJECT:
-                // System.out.println("PUTOBJECT: " + bytecodes[ip].o_op0);
+                // TODO cbase / const base difference (put by eval?
+// vm_insnhelper.c)
                 if (bytecodes[ip].l_op0 == 1) { // VM_SPECIAL_OBJECT_VMCORE
                     push(vmCore);
                 } else if (bytecodes[ip].l_op0 == 2) { // VM_SPECIAL_OBJECT_CBASE
                     push(context.getRubyClass());
                 } else if (bytecodes[ip].l_op0 == 3) { // VM_SPECIAL_OBJECT_CONST_BASE
-                    unimplemented(YARVInstructions.PUTSPECIALOBJECT);
+                    push(context.getRubyClass());
                 } else {
                     unimplemented(YARVInstructions.PUTSPECIALOBJECT);
                 }
@@ -434,15 +454,76 @@ public class YARVMachine {
             case YARVInstructions.PUTISEQ:
                 push(bytecodes[ip].iseq_op);
                 break;
+            case YARVInstructions.DEFINECLASS: {
+                IRubyObject parentClass = pop();
+                IRubyObject cBase = pop();
+                String name = bytecodes[ip].s_op0;
+                boolean isRedefine = (parentClass == runtime.getFalse());
+                InstructionSequence iseq = bytecodes[ip].iseq_op;
+
+                switch (bytecodes[ip].i_op2) {
+                case 0: /* scoped: class Foo::Bar */
+                case 3: /* no scope: class Bar */
+                    if (parentClass == runtime.getNil()) {
+                        parentClass = runtime.getObject();
+                    }
+
+                    if (cBase == runtime.getNil() || cBase == null) {
+                        cBase = runtime.getObject();
+                    }
+
+                    RubyClass newClass = ((RubyClass) cBase).getClass(name);
+                    if (newClass == null || isRedefine) {
+                        if (isRedefine) {
+                            parentClass = newClass.getSuperClass();
+                        }
+                        newClass = ((RubyClass) cBase).defineClassUnder(name,
+                                (RubyClass) parentClass, ((RubyClass) parentClass).getAllocator());
+                    }
+
+                    StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(
+                            context.getCurrentStaticScope());
+                    sco.setVariables(iseq.locals);
+                    sco.setModule(newClass);
+
+                    context.preClassEval(sco, newClass);
+
+                    try {
+                        if (runtime.hasEventHooks()) {
+                            callTraceFunction(runtime, context, RubyEvent.CLASS);
+                        }
+
+                        YARVMachine.INSTANCE.exec(context, newClass, iseq.body);
+                    } finally {
+                        try {
+                            if (runtime.hasEventHooks()) {
+                                callTraceFunction(runtime, context, RubyEvent.END);
+                            }
+                        } finally {
+                            context.postClassEval();
+                        }
+                    }
+
+                    break;
+                case 1:
+                    unimplemented(YARVInstructions.DEFINECLASS);
+                    break;
+                case 2: /* scoped: module Foo::Bar or module ::Bar */
+                case 5: /* no scope: module Bar */
+                    unimplemented(YARVInstructions.DEFINECLASS);
+                    break;
+                default:
+                    unimplemented(YARVInstructions.DEFINECLASS);
+                }
+
+                push(runtime.getNil());
+                break;
+            }
             case YARVInstructions.PUTSTRING:
                 push(context.getRuntime().newString(bytecodes[ip].s_op0));
                 break;
             case YARVInstructions.CONCATSTRINGS: {
                 StringBuilder concatter = new StringBuilder();
-
-// for (int i = 0; i < bytecodes[ip].l_op0; i++) {
-// concatter.append(pop().toString());
-// }
 
                 for (int i = (int) (stackTop - bytecodes[ip].l_op0); i < stackTop; i++) {
                     concatter.append(stack[i].toString());
@@ -458,18 +539,51 @@ public class YARVMachine {
                     set(top.callMethod(context, "to_s"));
                 }
                 break;
+            case YARVInstructions.TOREGEXP: {
+                int count = (int) bytecodes[ip].l_op1;
+                byte[][] parts = new byte[count][];
+                int size = 0;
+                for (int i = count - 1; i >= 0; i--) {
+                    IRubyObject part = pop();
+                    if (part instanceof RubyString) {
+                        String str = part.asJavaString();
+                        parts[i] = str.getBytes();
+                        size += parts[i].length;
+                    } else {
+                        System.err.println("unexpected part in regex creation");
+                    }
+                }
+                ByteList pattern = new ByteList(size);
+                for (int i = 0; i < count; i++) {
+                    pattern.append(parts[i]);
+                }
+                push(RubyRegexp.newRegexp(runtime, pattern,
+                        RegexpOptions.fromJoniOptions((int) bytecodes[ip].l_op0)));
+                break;
+            }
             case YARVInstructions.NEWARRAY:
                 push(runtime.newArrayNoCopy(popArray(new IRubyObject[(int) bytecodes[ip].l_op0])));
-                break;
-            case YARVInstructions.NEWRANGE:
-                // high, low, flag
-                IRubyObject end = pop();
-                IRubyObject begin = pop();
-                push(RubyRange.newRange(runtime, context, begin, end, bytecodes[ip].l_op0 != 0));
                 break;
             case YARVInstructions.DUPARRAY:
                 push(bytecodes[ip].o_op0.dup());
                 break;
+            case YARVInstructions.EXPANDARRAY: {
+                IRubyObject ary = pop();
+                if (ary != null && ary instanceof RubyArray) {
+                    RubyArray array = (RubyArray) ary;
+// for (int i = 0; i < ((int) bytecodes[ip].l_op0); i++) {
+                    for (int i = ((int) bytecodes[ip].l_op0) - 1; i >= 0; i--) {
+                        push(array.entry(i));
+                    }
+                    // TODO support for flag
+                } else {
+                    push(ary);
+                    for (int i = 1; i < ((int) bytecodes[ip].l_op0); i++) {
+                        push(runtime.getNil());
+                    }
+                }
+                break;
+            }
             case YARVInstructions.NEWHASH:
                 int hsize = (int) bytecodes[ip].l_op0;
                 RubyHash h = RubyHash.newHash(runtime);
@@ -482,9 +596,12 @@ public class YARVMachine {
                 }
                 push(h);
                 break;
-// case YARVInstructions.PUTNOT:
-// push(peek().isTrue() ? runtime.getFalse() : runtime.getTrue());
-// break;
+            case YARVInstructions.NEWRANGE:
+                // high, low, flag
+                IRubyObject end = pop();
+                IRubyObject begin = pop();
+                push(RubyRange.newRange(runtime, context, begin, end, bytecodes[ip].l_op0 != 0));
+                break;
             case YARVInstructions.POP:
                 pop();
                 break;
@@ -503,63 +620,6 @@ public class YARVMachine {
             case YARVInstructions.SETN:
                 setn((int) bytecodes[ip].l_op0, peek());
                 break;
-// case YARVInstructions.EMPTSTACK:
-// stackTop = stackStart;
-// break;
-// case YARVInstructions.DEFINEMETHOD:
-// RubyModule containingClass = context.getRubyClass();
-//
-// if (containingClass == null) {
-// throw runtime.newTypeError("No class to add method.");
-// }
-//
-// String mname = bytecodes[ip].iseq_op.name;
-// if (containingClass == runtime.getObject() && mname == "initialize") {
-// runtime.getWarnings().warn(ID.REDEFINING_DANGEROUS,
-// "redefining Object#initialize may cause infinite loop", "Object#initialize");
-// }
-//
-// Visibility visibility = context.getCurrentVisibility();
-// if (mname == "initialize" || visibility == Visibility.MODULE_FUNCTION) {
-// visibility = Visibility.PRIVATE;
-// }
-//
-// if (containingClass.isSingleton()) {
-// IRubyObject attachedObject = ((MetaClass) containingClass).getAttached();
-//
-// if (attachedObject instanceof RubyFixnum || attachedObject instanceof
-// RubySymbol) {
-// throw runtime.newTypeError("can't define singleton method \"" +
-// mname + "\" for " + attachedObject.getType());
-// }
-// }
-//
-// StaticScope sco = new LocalStaticScope(null);
-// sco.setVariables(bytecodes[ip].iseq_op.locals);
-// YARVMethod newMethod = new YARVMethod(containingClass, bytecodes[ip].iseq_op,
-// sco, visibility);
-//
-// containingClass.addMethod(mname, newMethod);
-//
-// if (context.getCurrentVisibility() == Visibility.MODULE_FUNCTION) {
-// RubyModule singleton = containingClass.getSingletonClass();
-// singleton.addMethod(mname, new WrapperMethod(singleton, newMethod,
-// Visibility.PUBLIC));
-// containingClass.callMethod(context, "singleton_method_added",
-// runtime.fastNewSymbol(mname));
-// }
-//
-// // 'class << state.self' and 'class << obj' uses defn as opposed to defs
-// if (containingClass.isSingleton()) {
-// ((MetaClass) containingClass).getAttached().callMethod(context,
-// "singleton_method_added", runtime.fastNewSymbol(mname));
-// } else {
-// containingClass.callMethod(context, "method_added",
-// runtime.fastNewSymbol(mname));
-// }
-// push(runtime.getNil());
-// runtime.incGlobalState();
-// break;
             case YARVInstructions.SEND: {
                 ip = send(runtime, context, self, bytecodes, stackStart, ip);
                 break;
@@ -577,25 +637,30 @@ public class YARVMachine {
                 continue yarvloop;
             }
             case YARVInstructions.GETINLINECACHE:
-                // TODO order of params changed
-                if (bytecodes[ip].l_op1 == runtime.getGlobalState()) {
-                    push(bytecodes[ip].o_op0);
-                    ip = (int) bytecodes[ip].l_op0;
-                    continue yarvloop;
-                }
+                // TODO getinlinecache should save location of cache number
+// if (bytecodes[ip].l_op1 == runtime.getGlobalState()) {
+// push(bytecodes[ip].o_op0);
+// ip = (int) bytecodes[ip].l_op0;
+// continue yarvloop;
+// }
+                push(runtime.getNil());
                 break;
             case YARVInstructions.ONCEINLINECACHE:
+                unimplemented(bytecodes[ip].bytecode);
                 // TODO just copied from getinlinecache for now..
-                if (bytecodes[ip].l_op1 > 0) {
-                    push(bytecodes[ip].o_op0);
-                    ip = (int) bytecodes[ip].l_op0;
-                    continue yarvloop;
-                }
+// if (bytecodes[ip].l_op1 > 0) {
+// push(bytecodes[ip].o_op0);
+// ip = (int) bytecodes[ip].l_op0;
+// continue yarvloop;
+// }
+                push(runtime.getNil());
                 break;
             case YARVInstructions.SETINLINECACHE:
-                int we = (int) bytecodes[ip].l_op0;
-                bytecodes[we].o_op0 = peek();
-                bytecodes[we].l_op1 = runtime.getGlobalState();
+                // TODO setinlinecache needs to find out location of inline
+// cache number first
+// int we = (int) bytecodes[ip].l_op0;
+// bytecodes[we].o_op0 = peek();
+// bytecodes[we].l_op1 = runtime.getGlobalState();
                 break;
             case YARVInstructions.OPT_PLUS:
                 op_plus(runtime, context, pop(), pop());
@@ -618,6 +683,10 @@ public class YARVMachine {
             case YARVInstructions.OPT_EQ:
                 other = pop();
                 push(pop().callMethod(context, "==", other));
+                break;
+            case YARVInstructions.OPT_NEQ:
+                other = pop();
+                push(pop().callMethod(context, "!=", other));
                 break;
             case YARVInstructions.OPT_LT:
                 op_lt(runtime, context, pop(), pop());
@@ -651,8 +720,14 @@ public class YARVMachine {
             case YARVInstructions.OPT_LENGTH:
                 push(pop().callMethod(context, "length"));
                 break;
+            case YARVInstructions.OPT_SIZE:
+                push(pop().callMethod(context, "size"));
+                break;
             case YARVInstructions.OPT_SUCC:
                 push(pop().callMethod(context, "succ"));
+                break;
+            case YARVInstructions.OPT_NOT:
+                push(pop().isTrue() ? runtime.getFalse() : runtime.getTrue());
                 break;
             case YARVInstructions.OPT_REGEXPMATCH1:
                 push(bytecodes[ip].o_op0.callMethod(context, "=~", peek()));
@@ -667,8 +742,18 @@ public class YARVMachine {
             case YARVInstructions.TRACE:
                 // System.err.println("Trace: " + bytecodes[ip].l_op0);
                 break;
-
-            // TODO getdynamic / setdynamic
+            case YARVInstructions.THROW: {
+                IRubyObject throwObj = pop();
+                switch ((int) bytecodes[ip].l_op0) {
+                case YARVInstructions.RUBY_TAG_RETURN:
+                    throw context.returnJump(throwObj);
+                case YARVInstructions.RUBY_TAG_BREAK:
+                    RuntimeHelpers.breakJump(context, throwObj);
+                default:
+                    unimplemented(bytecodes[ip].bytecode);
+                }
+                break;
+            }
 
             default:
                 unimplemented(bytecodes[ip].bytecode);
@@ -678,6 +763,12 @@ public class YARVMachine {
         }
 
         return pop();
+    }
+
+    public static void callTraceFunction(Ruby runtime, ThreadContext context, RubyEvent event) {
+        String name = context.getFrameName();
+        RubyModule type = context.getFrameKlazz();
+        runtime.callEventHooks(context, event, context.getFile(), context.getLine(), name, type);
     }
 
     private void op_plus(Ruby runtime, ThreadContext context, IRubyObject other,
@@ -772,7 +863,7 @@ public class YARVMachine {
             StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
                     context.getCurrentStaticScope());
             scope.setVariables(blockIseq.locals);
-            scope.yarvIseqLocalSize = blockIseq.local_size;
+            scope.determineModule();
             // TODO when evaluating method call, iteration has to proceed and
 // set argument variables accordingly.
             BlockBody blockBody = new YARVBlockBody(scope, arity, argumentType, blockIseq);
@@ -804,18 +895,18 @@ public class YARVMachine {
 // three
         // send instructions makes more sense...
         IRubyObject recv;
-        CallType callType;
+        // CallType callType;
         if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
             if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
                 recv = pop();
-                callType = CallType.NORMAL;
+                // callType = CallType.NORMAL;
                 if (instruction.callAdapter == null) {
                     instruction.callAdapter = MethodIndex.getCallSite(name.intern());
                 }
             } else {
                 pop();
                 recv = self;
-                callType = CallType.FUNCTIONAL;
+                // callType = CallType.FUNCTIONAL;
                 if (instruction.callAdapter == null) {
                     instruction.callAdapter = MethodIndex.getFunctionalCallSite(name.intern());
                 }
@@ -824,7 +915,7 @@ public class YARVMachine {
         } else {
             pop();
             recv = self;
-            callType = CallType.VARIABLE;
+            // callType = CallType.VARIABLE;
             if (instruction.callAdapter == null) {
                 instruction.callAdapter = MethodIndex.getVariableCallSite(name.intern());
             }

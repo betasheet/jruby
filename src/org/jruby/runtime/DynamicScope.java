@@ -38,6 +38,8 @@ public abstract class DynamicScope {
     // been called.
     protected DynamicScope evalScope;
 
+    public DynamicScope localScope = this;
+
     protected DynamicScope(StaticScope staticScope, DynamicScope parent) {
         this.staticScope = staticScope;
         this.parent = parent;
