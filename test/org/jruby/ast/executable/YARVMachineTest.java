@@ -2,6 +2,7 @@ package org.jruby.ast.executable;
 
 import org.jruby.Ruby;
 import org.jruby.ast.executable.YARVMachine.Instruction;
+import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.parser.LocalStaticScope;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.ThreadContext;
@@ -82,7 +83,9 @@ public class YARVMachineTest extends TestCase {
         
         StaticScope scope = new LocalStaticScope(null);
         scope.setVariables(new String[] { "zero", "one" });
-        assertEquals("Hello, YARV!Hello, YARV!Object", ym.exec(context, scope, getSimpleTest(runtime)).toString());
+        InstructionSequence iseq = new InstructionSequence(null, null, null, null, null);
+        iseq.body = getSimpleTest(runtime);
+        assertEquals("Hello, YARV!Hello, YARV!Object", ym.exec(context, scope, iseq).toString());
     }
     
     public void testIterativeFib() {
@@ -93,9 +96,12 @@ public class YARVMachineTest extends TestCase {
         
         StaticScope scope = new LocalStaticScope(null);
         scope.setVariables(new String[] {"n", "i", "j", "cur", "k"});
-        assertEquals("55", ym.exec(context, scope, getFib(runtime,10)).toString());
+        InstructionSequence iseq = new InstructionSequence(null, null, null, null, null);
+        iseq.body = getFib(runtime,10);
+        assertEquals("55", ym.exec(context, scope, iseq).toString());
         
-        IRubyObject fib5k = ym.exec(context, scope, getFib(runtime,5000));
+        iseq.body = getFib(runtime,5000);
+        IRubyObject fib5k = ym.exec(context, scope, iseq);
         assertEquals("38789684543883256337019163083259053120821277146462451061605972148955501390440370" +
                 "9701082291646221066947929345285888297381348310200895498294036143015691147893836421656" +
                 "3944106910214505634133706558656238254656700712525929903854933813928836378347518908762" +

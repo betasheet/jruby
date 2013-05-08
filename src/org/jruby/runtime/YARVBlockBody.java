@@ -122,7 +122,7 @@ public class YARVBlockBody extends ContextAwareBlockBody {
         // This while loop is for restarting the block call in case a 'redo' fires.
         while (true) {
             try {
-                return YARVMachine.getInstance().exec(context, self, iseq.body);
+                return YARVMachine.getInstance().exec(context, self, iseq);
             } catch (JumpException.RedoJump rj) {
                 context.pollThreadEvents();
                 // do nothing, allow loop to redo

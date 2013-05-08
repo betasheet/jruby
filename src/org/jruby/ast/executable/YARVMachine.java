@@ -15,6 +15,7 @@ import org.jruby.RubyObject;
 import org.jruby.RubyRange;
 import org.jruby.RubyRegexp;
 import org.jruby.RubyString;
+import org.jruby.ast.executable.YARVMachine.InstructionSequence.InlineCache;
 import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.Arity;
@@ -35,22 +36,23 @@ import org.jruby.util.ByteList;
 import org.jruby.util.RegexpOptions;
 
 public class YARVMachine {
+
     private static final boolean TAILCALL_OPT = Boolean.getBoolean("jruby.tailcall.enabled");
 
     public static List<YARVMachine> INSTANCES = new ArrayList<YARVMachine>(32);
-    
+
     public static YARVMachine getInstance() {
         int tid = (int) Thread.currentThread().getId();
-        
+
         while (INSTANCES.size() <= tid) {
             INSTANCES.add(null);
         }
-        
+
         YARVMachine machine = INSTANCES.get(tid);
-        if (machine == null){
+        if (machine == null) {
             INSTANCES.set(tid, machine = new YARVMachine());
         }
-        
+
         return machine;
     }
 
@@ -59,6 +61,12 @@ public class YARVMachine {
     }
 
     public static class InstructionSequence extends RubyObject {
+
+        public class InlineCache {
+            public long state;
+            public IRubyObject cachedObject;
+        }
+        
         public String magic;
         public int major;
         public int minor;
@@ -117,6 +125,14 @@ public class YARVMachine {
          */
         public int getOptArgsLength() {
             return args_opt_labels == null ? 0 : args_opt_labels.length;
+        }
+        
+        private InlineCache[] inlineCaches = new InlineCache[1024];
+
+        private InlineCache getInlineCache(int id) {
+            if (inlineCaches[id] == null)
+                inlineCaches[id] = new InlineCache();
+            return inlineCaches[id];
         }
     }
 
@@ -317,7 +333,7 @@ public class YARVMachine {
      *            to be executed
      * @return last value pop'd of machine stack
      */
-    public IRubyObject exec(ThreadContext context, StaticScope scope, Instruction[] bytecodes) {
+    public IRubyObject exec(ThreadContext context, StaticScope scope, InstructionSequence iseq) {
         try {
             IRubyObject self = context.getRuntime().getObject();
 
@@ -327,16 +343,17 @@ public class YARVMachine {
                 scope.setModule(context.getRuntime().getObject());
             }
 
-            return exec(context, self, bytecodes);
+            return exec(context, self, iseq);
         } finally {
             context.postScopedBody();
         }
     }
 
-    public IRubyObject exec(ThreadContext context, IRubyObject self, Instruction[] bytecodes) {
+    public IRubyObject exec(ThreadContext context, IRubyObject self, InstructionSequence iseq) {
         Ruby runtime = context.getRuntime();
 
         RubyClass vmCore = YARVVMCore.createYARVVMCore(runtime);
+        Instruction[] bytecodes = iseq.body;
 
         // Where this frames stack begins.
         int stackStart = stackTop;
@@ -477,7 +494,7 @@ public class YARVMachine {
                 IRubyObject cBase = pop();
                 String name = bytecodes[ip].s_op0;
                 boolean isRedefine = (parentClass == runtime.getFalse());
-                InstructionSequence iseq = bytecodes[ip].iseq_op;
+                InstructionSequence cIseq = bytecodes[ip].iseq_op;
 
                 switch (bytecodes[ip].i_op2) {
                 case 0: /* scoped: class Foo::Bar */
@@ -501,7 +518,7 @@ public class YARVMachine {
 
                     StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(
                             context.getCurrentStaticScope());
-                    sco.setVariables(iseq.locals);
+                    sco.setVariables(cIseq.locals);
                     sco.setModule(newClass);
 
                     context.preClassEval(sco, newClass);
@@ -511,7 +528,7 @@ public class YARVMachine {
                             callTraceFunction(runtime, context, RubyEvent.CLASS);
                         }
 
-                        YARVMachine.getInstance().exec(context, newClass, iseq.body);
+                        YARVMachine.getInstance().exec(context, newClass, cIseq);
                     } finally {
                         try {
                             if (runtime.hasEventHooks()) {
@@ -654,32 +671,23 @@ public class YARVMachine {
                 ip = !pop().isTrue() ? (int) bytecodes[ip].l_op0 : ip + 1;
                 continue yarvloop;
             }
-            case YARVInstructions.GETINLINECACHE:
-                // TODO getinlinecache should save location of cache number
-// if (bytecodes[ip].l_op1 == runtime.getGlobalState()) {
-// push(bytecodes[ip].o_op0);
-// ip = (int) bytecodes[ip].l_op0;
-// continue yarvloop;
-// }
-                push(runtime.getNil());
-                break;
             case YARVInstructions.ONCEINLINECACHE:
-                unimplemented(bytecodes[ip].bytecode);
-                // TODO just copied from getinlinecache for now..
-// if (bytecodes[ip].l_op1 > 0) {
-// push(bytecodes[ip].o_op0);
-// ip = (int) bytecodes[ip].l_op0;
-// continue yarvloop;
-// }
+            case YARVInstructions.GETINLINECACHE: {
+                InlineCache ic = iseq.getInlineCache((int) bytecodes[ip].l_op1);
+                if (ic.state == runtime.getGlobalState()) {
+                    push(ic.cachedObject);
+                    ip = (int) bytecodes[ip].l_op0;
+                    continue yarvloop;
+                }
                 push(runtime.getNil());
                 break;
-            case YARVInstructions.SETINLINECACHE:
-                // TODO setinlinecache needs to find out location of inline
-// cache number first
-// int we = (int) bytecodes[ip].l_op0;
-// bytecodes[we].o_op0 = peek();
-// bytecodes[we].l_op1 = runtime.getGlobalState();
+            }
+            case YARVInstructions.SETINLINECACHE: {
+                InlineCache ic = iseq.getInlineCache((int) bytecodes[ip].l_op0);
+                ic.state = runtime.getGlobalState();
+                ic.cachedObject = peek();
                 break;
+            }
             case YARVInstructions.OPT_PLUS:
                 op_plus(runtime, context, pop(), pop());
                 break;

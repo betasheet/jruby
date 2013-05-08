@@ -92,7 +92,7 @@ public class YARVMethod extends DynamicMethod {
             // Why not setArgValues
             scope.setArgValues(args, args.length);
 
-            return ym.exec(context, self, iseq.body);
+            return ym.exec(context, self, iseq);
         } catch (JumpException.ReturnJump rj) {
         	if (rj.getTarget() == context.getFrameJumpTarget()){
                 ym.stackTop = savedStackTop;

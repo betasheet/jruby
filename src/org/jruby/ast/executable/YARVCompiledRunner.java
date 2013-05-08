@@ -80,7 +80,7 @@ public class YARVCompiledRunner {
         ThreadContext context = runtime.getCurrentContext();
         StaticScope scope = runtime.getStaticScopeFactory().newLocalScope(null, iseq.locals);
         context.setFileAndLine(iseq.filename, -1);
-        return YARVMachine.getInstance().exec(context, scope, iseq.body);
+        return YARVMachine.getInstance().exec(context, scope, iseq);
     }
 
     private YARVMachine.InstructionSequence transformIntoSequence(IRubyObject arr) {
