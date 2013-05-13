@@ -188,10 +188,6 @@ public class YARVCompiledRunner {
         YARVMachine.Instruction i = new YARVMachine.Instruction(instruction);
         if (internal.size() > 1) {
             IRubyObject first = (IRubyObject) internal.get(1);
-// if (instruction == YARVInstructions.GETLOCAL
-// || instruction == YARVInstructions.SETLOCAL) {
-// i.l_op0 = (iseq.locals.length + 1) - RubyNumeric.fix2long(first);
-// } else
             if (instruction == YARVInstructions.PUTOBJECT
                     || instruction == YARVInstructions.OPT_REGEXPMATCH1
                     || instruction == YARVInstructions.DUPARRAY) {
@@ -200,6 +196,11 @@ public class YARVCompiledRunner {
                 i.s_op0 = first.toString();
             } else if (first instanceof RubyNumeric) {
                 i.l_op0 = RubyNumeric.fix2long(first);
+            }
+
+            if (instruction == YARVInstructions.GETLOCAL
+                    || instruction == YARVInstructions.SETLOCAL) {
+                i.i_op1 = -1;
             }
 
             if (instruction == YARVInstructions.GETINLINECACHE

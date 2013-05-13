@@ -66,7 +66,7 @@ public class YARVMachine {
             public long state;
             public IRubyObject cachedObject;
         }
-        
+
         public String magic;
         public int major;
         public int minor;
@@ -126,7 +126,7 @@ public class YARVMachine {
         public int getOptArgsLength() {
             return args_opt_labels == null ? 0 : args_opt_labels.length;
         }
-        
+
         private InlineCache[] inlineCaches = new InlineCache[1024];
 
         private InlineCache getInlineCache(int id) {
@@ -374,13 +374,25 @@ public class YARVMachine {
                 break;
             case YARVInstructions.GETLOCAL: {
                 DynamicScope scope = context.getCurrentScope().localScope;
-                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
+                int idx;
+                if (bytecodes[ip].i_op1 >= 0) {
+                    idx = bytecodes[ip].i_op1;
+                } else {
+                    idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
+                    bytecodes[ip].i_op1 = idx;
+                }
                 push(scope.getValue(idx, 0));
                 break;
             }
             case YARVInstructions.SETLOCAL: {
                 DynamicScope scope = context.getCurrentScope().localScope;
-                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
+                int idx;
+                if (bytecodes[ip].i_op1 >= 0) {
+                    idx = bytecodes[ip].i_op1;
+                } else {
+                    idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
+                    bytecodes[ip].i_op1 = idx;
+                }
                 scope.setValue(idx, pop(), 0);
                 break;
             }
@@ -452,19 +464,18 @@ public class YARVMachine {
             }
             case YARVInstructions.SETCONSTANT: {
                 IRubyObject klass = pop();
+                IRubyObject value = pop();
                 if (klass == null || klass == runtime.getNil()) {
-                    IRubyObject value = pop();
                     context.getCurrentStaticScope().setConstant(bytecodes[ip].s_op0, value);
                     runtime.incGlobalState();
                 } else {
-                    IRubyObject value = pop();
                     push(((RubyModule) klass).setConstant(bytecodes[ip].s_op0, value));
                     runtime.incGlobalState();
                 }
                 break;
             }
             case YARVInstructions.PUTNIL:
-                push(context.getRuntime().getNil());
+                push(runtime.getNil());
                 break;
             case YARVInstructions.PUTSELF:
                 push(self);
@@ -555,7 +566,7 @@ public class YARVMachine {
                 break;
             }
             case YARVInstructions.PUTSTRING:
-                push(context.getRuntime().newString(bytecodes[ip].s_op0));
+                push(runtime.newString(bytecodes[ip].s_op0));
                 break;
             case YARVInstructions.CONCATSTRINGS: {
                 StringBuilder concatter = new StringBuilder();
@@ -606,7 +617,7 @@ public class YARVMachine {
                 IRubyObject ary = pop();
                 if (ary != null && ary instanceof RubyArray) {
                     RubyArray array = (RubyArray) ary;
-// for (int i = 0; i < ((int) bytecodes[ip].l_op0); i++) {
+                    // for (int i = 0; i < ((int) bytecodes[ip].l_op0); i++) {
                     for (int i = ((int) bytecodes[ip].l_op0) - 1; i >= 0; i--) {
                         push(array.entry(i));
                     }
@@ -619,11 +630,10 @@ public class YARVMachine {
                 }
                 break;
             }
-            case YARVInstructions.NEWHASH:
+            case YARVInstructions.NEWHASH: {
                 int hsize = (int) bytecodes[ip].l_op0;
                 RubyHash h = RubyHash.newHash(runtime);
-                IRubyObject v,
-                k;
+                IRubyObject v, k;
                 for (int i = hsize; i > 0; i -= 2) {
                     v = pop();
                     k = pop();
@@ -631,6 +641,7 @@ public class YARVMachine {
                 }
                 push(h);
                 break;
+            }
             case YARVInstructions.NEWRANGE:
                 // high, low, flag
                 IRubyObject end = pop();
