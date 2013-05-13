@@ -128,6 +128,7 @@ public class YARVMachine {
         }
 
         private InlineCache[] inlineCaches = new InlineCache[1024];
+        public YARVBlockBody blockBody;
 
         private InlineCache getInlineCache(int id) {
             if (inlineCaches[id] == null)
@@ -878,36 +879,38 @@ public class YARVMachine {
         if (blockIseq != null) {
             // System.err.println("block support not implemented");
 
-            // TODO argumentType array (for lambdas?)
-            boolean opts = blockIseq.getOptArgsLength() > 0 || blockIseq.args_rest > 0;
-            boolean req = blockIseq.args_argc > 0;
-            Arity arity;
-            int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
-            if (!req && !opts) {
-                arity = Arity.noArguments();
-                argumentType = BlockBody.ZERO_ARGS;
-            } else if (req && !opts) {
-                arity = Arity.fixed(blockIseq.args_argc);
-            } else if (opts && !req) {
-                arity = Arity.optional();
-                if (blockIseq.args_rest > 0 && blockIseq.getOptArgsLength() <= 0) {
-                    argumentType = BlockBody.SINGLE_RESTARG;
+            if (blockIseq.blockBody == null) {
+                // TODO argumentType array (for lambdas?)
+                boolean opts = blockIseq.getOptArgsLength() > 0 || blockIseq.args_rest > 0;
+                boolean req = blockIseq.args_argc > 0;
+                Arity arity;
+                int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
+                if (!req && !opts) {
+                    arity = Arity.noArguments();
+                    argumentType = BlockBody.ZERO_ARGS;
+                } else if (req && !opts) {
+                    arity = Arity.fixed(blockIseq.args_argc);
+                } else if (opts && !req) {
+                    arity = Arity.optional();
+                    if (blockIseq.args_rest > 0 && blockIseq.getOptArgsLength() <= 0) {
+                        argumentType = BlockBody.SINGLE_RESTARG;
+                    }
+                } else {
+                    arity = Arity.required(blockIseq.args_argc);
                 }
-            } else {
-                arity = Arity.required(blockIseq.args_argc);
-            }
 
-            StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
-                    context.getCurrentStaticScope());
-            scope.setVariables(blockIseq.locals);
-            scope.determineModule();
-            // TODO when evaluating method call, iteration has to proceed and
-// set argument variables accordingly.
-            BlockBody blockBody = new YARVBlockBody(scope, arity, argumentType, blockIseq);
+                StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
+                        context.getCurrentStaticScope());
+                scope.setVariables(blockIseq.locals);
+                scope.determineModule();
+                // TODO when evaluating method call, iteration has to proceed
+// and set argument variables accordingly.
+                blockIseq.blockBody = new YARVBlockBody(scope, arity, argumentType, blockIseq);
+            }
 
             Binding binding = context.currentBinding(self, Visibility.PUBLIC);
 
-            block = new Block(blockBody, binding);
+            block = new Block(blockIseq.blockBody, binding);
         } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
             System.err.println("block arg support not implemented");
         }
