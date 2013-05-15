@@ -1,8 +1,5 @@
 package org.jruby.ast.executable;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.jruby.MetaClass;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
@@ -39,21 +36,15 @@ public class YARVMachine {
 
     private static final boolean TAILCALL_OPT = Boolean.getBoolean("jruby.tailcall.enabled");
 
-    public static List<YARVMachine> INSTANCES = new ArrayList<YARVMachine>(32);
+    public static ThreadLocal<YARVMachine> INSTANCE = new ThreadLocal<YARVMachine>() {
+        @Override
+        protected YARVMachine initialValue() {
+            return new YARVMachine();
+        }
+    };
 
     public static YARVMachine getInstance() {
-        int tid = (int) Thread.currentThread().getId();
-
-        while (INSTANCES.size() <= tid) {
-            INSTANCES.add(null);
-        }
-
-        YARVMachine machine = INSTANCES.get(tid);
-        if (machine == null) {
-            INSTANCES.set(tid, machine = new YARVMachine());
-        }
-
-        return machine;
+        return INSTANCE.get();
     }
 
     public static int instruction(String name) {
@@ -872,9 +863,6 @@ public class YARVMachine {
 
         Block block = null;
 
-        // ENEBO: We need to define a YarvBlock
-        // Instruction[] blockBytecodes = bytecodes[ip].ins_op;
-        // TODO: block stuff
         InstructionSequence blockIseq = bytecodes[ip].iseq_op;
         if (blockIseq != null) {
             // System.err.println("block support not implemented");
@@ -915,25 +903,20 @@ public class YARVMachine {
             System.err.println("block arg support not implemented");
         }
 
+        IRubyObject[] args;
         if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
             RubyArray splatArray = (RubyArray) pop();
             size += splatArray.getLength() - 1;
-            pushArray(splatArray);
-        }
-
-        IRubyObject[] args;
-        if (size == 0) {
-            args = IRubyObject.NULL_ARRAY;
+            args = splatArray.toJavaArrayUnsafe();
         } else {
-            args = new IRubyObject[size];
-            popArray(args);
+            if (size == 0) {
+                args = IRubyObject.NULL_ARRAY;
+            } else {
+                args = new IRubyObject[size];
+                popArray(args);
+            }
         }
 
-        // FCalls and VCalls use a nil as a place holder, but this is just extra
-// stack
-        // traffic. Also extra flag activity (tiny perf-wise). I would think
-// three
-        // send instructions makes more sense...
         IRubyObject recv;
         // CallType callType;
         if ((flags & YARVInstructions.VCALL_FLAG) == 0) {

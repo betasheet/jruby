@@ -21,6 +21,7 @@
  */
 package org.jruby.test.mvm;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -32,6 +33,8 @@ import java.nio.charset.Charset;
 
 import org.jruby.Ruby;
 import org.jruby.RubyInstanceConfig;
+import org.jruby.ast.Node;
+import org.jruby.ast.util.SexpMaker;
 import org.jruby.test.TestRubyBase;
 
 /**
@@ -43,7 +46,7 @@ public class MvmCompilationTests extends TestRubyBase {
     private final String OUTPUTS_DIR = "mvm/testscripts/out_jruby/";
 
     public void testBinarytrees() throws Exception {
-        evalFile("binarytrees.rb", new String[] { "10" });
+        evalFile("binarytrees.rb", new String[] { "14" });
     }
 
     public void testFannkuch() throws Exception {
@@ -78,6 +81,8 @@ public class MvmCompilationTests extends TestRubyBase {
 
         String contents = readFile(TEST_SCRIPT_DIR + fileName);
         String expectedOutput = readFile(EXPECTED_OUTPUTS_DIR + fileName + ".log");
+        Node node = runtime.parseFromMain(new ByteArrayInputStream(contents.getBytes()), "test");
+        System.out.println(SexpMaker.create(node));
         String output = runFromMain(contents).trim();
 
         writeFile(OUTPUTS_DIR + fileName + ".log", output);
