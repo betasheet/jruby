@@ -256,7 +256,18 @@ public class YARVMachine {
      */
     private IRubyObject[] popArray(IRubyObject arr[]) {
         stackTop -= arr.length;
-        System.arraycopy(stack, stackTop, arr, 0, arr.length);
+        switch (arr.length) {
+        case 3:
+            arr[2] = stack[stackTop + 2];
+        case 2:
+            arr[1] = stack[stackTop + 1];
+        case 1:
+            arr[0] = stack[stackTop];
+            break;
+        default:
+            System.arraycopy(stack, stackTop, arr, 0, arr.length);
+            break;
+        }
 
         /*
          * System.out.print("popArray:"); for (int i = 0; i < arr.length; i++) {
@@ -611,7 +622,7 @@ public class YARVMachine {
                     RubyArray array = (RubyArray) ary;
                     // for (int i = 0; i < ((int) bytecodes[ip].l_op0); i++) {
                     for (int i = ((int) bytecodes[ip].l_op0) - 1; i >= 0; i--) {
-                        push(array.entry(i));
+                        push(array.eltInternal(i));
                     }
                     // TODO support for flag
                 } else {
