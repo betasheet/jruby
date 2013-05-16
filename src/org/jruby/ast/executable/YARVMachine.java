@@ -704,67 +704,63 @@ public class YARVMachine {
             }
             case YARVInstructions.OPT_PLUS:
                 op_plus(runtime, context, pop(), pop());
+                //sendVirtual(runtime, context, self, "+", 1);
                 break;
             case YARVInstructions.OPT_MINUS:
                 op_minus(runtime, context, pop(), pop());
+                //sendVirtual(runtime, context, self, "-", 1);
                 break;
             case YARVInstructions.OPT_MULT:
-                other = pop();
-                push(pop().callMethod(context, "*", other));
+                sendVirtual(runtime, context, self, "*", 1);
                 break;
             case YARVInstructions.OPT_DIV:
-                other = pop();
-                push(pop().callMethod(context, "/", other));
+                sendVirtual(runtime, context, self, "/", 1);
                 break;
             case YARVInstructions.OPT_MOD:
-                other = pop();
-                push(pop().callMethod(context, "%", other));
+                sendVirtual(runtime, context, self, "%", 1);
                 break;
             case YARVInstructions.OPT_EQ:
-                other = pop();
-                push(pop().callMethod(context, "==", other));
+                sendVirtual(runtime, context, self, "==", 1);
                 break;
             case YARVInstructions.OPT_NEQ:
-                other = pop();
-                push(pop().callMethod(context, "!=", other));
+                sendVirtual(runtime, context, self, "!=", 1);
                 break;
             case YARVInstructions.OPT_LT:
                 op_lt(runtime, context, pop(), pop());
+                //sendVirtual(runtime, context, self, "<", 1);
                 break;
             case YARVInstructions.OPT_LE:
-                other = pop();
-                push(pop().callMethod(context, "<=", other));
+                sendVirtual(runtime, context, self, "<=", 1);
                 break;
             case YARVInstructions.OPT_LTLT:
-                other = pop();
-                push(pop().callMethod(context, "<<", other));
+                sendVirtual(runtime, context, self, "<<", 1);
                 break;
             case YARVInstructions.OPT_GT:
                 op_gt(runtime, context, pop(), pop());
+                //sendVirtual(runtime, context, self, ">", 1);
                 break;
             case YARVInstructions.OPT_GE:
-                other = pop();
-                push(pop().callMethod(context, ">=", other));
+                sendVirtual(runtime, context, self, ">=", 1);
                 break;
             case YARVInstructions.OPT_AREF:
-                other = pop();
-                push(pop().callMethod(context, "[]", other));
+                sendVirtual(runtime, context, self, "[]", 1);
                 break;
             case YARVInstructions.OPT_ASET: {
                 // YARV will never emit this, for some reason.
-                IRubyObject value = pop();
-                other = pop();
-                push(RuntimeHelpers.invoke(context, pop(), "[]=", other, value));
+                //IRubyObject value = pop();
+                //other = pop();
+                //push(RuntimeHelpers.invoke(context, pop(), "[]=", other, value));
+                sendVirtual(runtime, context, self, "[]=", 2);
                 break;
             }
             case YARVInstructions.OPT_LENGTH:
-                push(pop().callMethod(context, "length"));
+                sendVirtual(runtime, context, self, "length", 1);
                 break;
             case YARVInstructions.OPT_SIZE:
-                push(pop().callMethod(context, "size"));
+                sendVirtual(runtime, context, self, "size", 1);
                 break;
             case YARVInstructions.OPT_SUCC:
-                push(pop().callMethod(context, "succ"));
+                sendVirtual(runtime, context, self, "succ", 1);
                 break;
             case YARVInstructions.OPT_NOT:
                 push(pop().isTrue() ? runtime.getFalse() : runtime.getTrue());
@@ -773,8 +769,7 @@ public class YARVMachine {
                 push(bytecodes[ip].o_op0.callMethod(context, "=~", peek()));
                 break;
             case YARVInstructions.OPT_REGEXPMATCH2:
-                other = pop();
-                push(pop().callMethod(context, "=~", other));
+                sendVirtual(runtime, context, self, "=~", 1);
                 break;
             case YARVInstructions.ANSWER:
                 push(runtime.newFixnum(42));
@@ -914,65 +909,171 @@ public class YARVMachine {
             System.err.println("block arg support not implemented");
         }
 
-        IRubyObject[] args;
+        if (instruction.callAdapter == null) {
+            if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                    instruction.callAdapter = MethodIndex.getCallSite(name.intern());
+                } else {
+                    instruction.callAdapter = MethodIndex.getFunctionalCallSite(name.intern());
+
+                }
+            } else {
+                instruction.callAdapter = MethodIndex.getVariableCallSite(name.intern());
+            }
+        }
+
         if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
             RubyArray splatArray = (RubyArray) pop();
             size += splatArray.getLength() - 1;
-            args = splatArray.toJavaArrayUnsafe();
-        } else {
+            pushArray(splatArray);
+        }
+
+        switch (size) {
+        case 3: {
+            IRubyObject arg3 = pop();
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+
+            IRubyObject recv = pop();
+            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+                stackTop = stackStart;
+                ip = -1;
+
+                IRubyObject[] vals = context.getCurrentScope().getValues();
+                vals[0] = arg1;
+                vals[1] = arg2;
+                vals[2] = arg3;
+            } else {
+                if (block == null) {
+                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2, arg3));
+                } else {
+                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2, arg3, block));
+                }
+            }
+            break;
+        }
+        case 2: {
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+
+            IRubyObject recv = pop();
+            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+                stackTop = stackStart;
+                ip = -1;
+
+                IRubyObject[] vals = context.getCurrentScope().getValues();
+                vals[0] = arg1;
+                vals[1] = arg2;
+            } else {
+                if (block == null) {
+                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2));
+                } else {
+                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2, block));
+                }
+            }
+            break;
+        }
+        case 1: {
+            IRubyObject arg1 = pop();
+
+            IRubyObject recv = pop();
+            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+                stackTop = stackStart;
+                ip = -1;
+
+                IRubyObject[] vals = context.getCurrentScope().getValues();
+                vals[0] = arg1;
+            } else {
+                if (block == null) {
+                    push(instruction.callAdapter.call(context, self, recv, arg1));
+                } else {
+                    push(instruction.callAdapter.call(context, self, recv, arg1, block));
+                }
+            }
+            break;
+        }
+        case 0: {
+            IRubyObject recv = pop();
+            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+                stackTop = stackStart;
+                ip = -1;
+            } else {
+                if (block == null) {
+                    push(instruction.callAdapter.call(context, self, recv));
+                } else {
+                    push(instruction.callAdapter.call(context, self, recv, block));
+                }
+            }
+            break;
+        }
+        default: {
+            IRubyObject[] args;
+            args = new IRubyObject[size];
+            popArray(args);
+
+            IRubyObject recv = pop();
+            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+                stackTop = stackStart;
+                ip = -1;
+
+                IRubyObject[] vals = context.getCurrentScope().getValues();
+                for (int i = 0; i < size; i++) {
+                    vals[i] = args[i];
+                }
+            } else {
+                if (block == null) {
+                    push(instruction.callAdapter.call(context, self, recv, args));
+                } else {
+                    push(instruction.callAdapter.call(context, self, recv, args, block));
+                }
+            }
+            break;
+        }
+        }
+
+        return ip;
+    }
+
+    private boolean isTailCall(ThreadContext context, Instruction[] bytecodes, int ip,
+            IRubyObject recv, IRubyObject self, int flags, String name) {
+        return (bytecodes[ip + 1].bytecode == YARVInstructions.LEAVE || (flags & YARVInstructions.TAILCALL_FLAG) == YARVInstructions.TAILCALL_FLAG)
+                && recv == self && name.equals(context.getFrameName());
+    }
+
+    private void sendVirtual(Ruby runtime, ThreadContext context, IRubyObject self, String name,
+            int size) {
+        CallSite callAdapter = MethodIndex.getCallSite(name.intern());
+
+        switch (size) {
+        case 3: {
+            IRubyObject arg3 = pop();
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+            push(callAdapter.call(context, self, pop(), arg1, arg2, arg3));
+            break;
+        }
+        case 2: {
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+            push(callAdapter.call(context, self, pop(), arg1, arg2));
+            break;
+        }
+        case 1: {
+            IRubyObject arg1 = pop();
+            push(callAdapter.call(context, self, pop(), arg1));
+            break;
+        }
+        default: {
+            IRubyObject[] args;
             if (size == 0) {
                 args = IRubyObject.NULL_ARRAY;
             } else {
                 args = new IRubyObject[size];
                 popArray(args);
             }
+            push(callAdapter.call(context, self, pop(), args));
+            break;
         }
-
-        IRubyObject recv;
-        // CallType callType;
-        if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
-            if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
-                recv = pop();
-                // callType = CallType.NORMAL;
-                if (instruction.callAdapter == null) {
-                    instruction.callAdapter = MethodIndex.getCallSite(name.intern());
-                }
-            } else {
-                pop();
-                recv = self;
-                // callType = CallType.FUNCTIONAL;
-                if (instruction.callAdapter == null) {
-                    instruction.callAdapter = MethodIndex.getFunctionalCallSite(name.intern());
-                }
-
-            }
-        } else {
-            pop();
-            recv = self;
-            // callType = CallType.VARIABLE;
-            if (instruction.callAdapter == null) {
-                instruction.callAdapter = MethodIndex.getVariableCallSite(name.intern());
-            }
         }
-
-        if (TAILCALL_OPT
-                && (bytecodes[ip + 1].bytecode == YARVInstructions.LEAVE || (flags & YARVInstructions.TAILCALL_FLAG) == YARVInstructions.TAILCALL_FLAG)
-                && recv == self && name.equals(context.getFrameName())) {
-            stackTop = stackStart;
-            ip = -1;
-
-            for (int i = 0; i < args.length; i++) {
-                context.getCurrentScope().getValues()[i] = args[i];
-            }
-        } else {
-            if (block == null) {
-                push(instruction.callAdapter.call(context, self, recv, args));
-            } else {
-                push(instruction.callAdapter.call(context, self, recv, args, block));
-            }
-            // push(recv.callMethod(context, name, args, callType));
-        }
-
-        return ip;
     }
 }
