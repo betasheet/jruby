@@ -91,6 +91,7 @@ import org.jruby.ast.executable.RubiniusRunner;
 import org.jruby.ast.executable.RuntimeCache;
 import org.jruby.ast.executable.Script;
 import org.jruby.ast.executable.YARVCompiledRunner;
+import org.jruby.ast.executable.YARVVMCore;
 import org.jruby.common.IRubyWarnings.ID;
 import org.jruby.common.RubyWarnings;
 import org.jruby.compiler.ASTCompiler;
@@ -1468,6 +1469,10 @@ public final class Ruby {
         
         if (profile.allowClass("Enumerator")) {
             RubyEnumerator.defineEnumerator(this);
+        }
+        
+        if(config.isYARVEnabled()) {
+            yarvVMCore = YARVVMCore.createYARVVMCore(this);
         }
         
         if (is1_9()) {
@@ -4374,6 +4379,10 @@ public final class Ruby {
     public Random getRandom() {
         return random;
     }
+    
+    public RubyClass getYarvVMCore() {
+        return yarvVMCore;
+    }
 
     public long getHashSeedK0() {
         return hashSeedK0;
@@ -4473,7 +4482,7 @@ public final class Ruby {
             syntaxError, standardError, loadError, notImplementedError, securityError, noMemoryError,
             regexpError, eofError, threadError, concurrencyError, systemStackError, zeroDivisionError, floatDomainError, mathDomainError,
             encodingError, encodingCompatibilityError, converterNotFoundError, undefinedConversionError,
-            invalidByteSequenceError, fiberError, randomClass, keyError;
+            invalidByteSequenceError, fiberError, randomClass, keyError, yarvVMCore;
 
     /**
      * All the core modules we keep direct references to, for quick access and

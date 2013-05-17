@@ -50,27 +50,27 @@ public class MvmCompilationTests extends TestRubyBase {
     }
 
     public void testFannkuch() throws Exception {
-        evalFile("fannkuch.rb", new String[] { "8" });
+        evalFile("fannkuch.rb", new String[] { "9" });
     }
 
     public void testFasta() throws Exception {
-        evalFile("fasta.rb", new String[] { "2500" });
+        evalFile("fasta.rb", new String[] { "500000" });
     }
 
     public void testMandelbrot() throws Exception {
-        evalFile("mandelbrot.rb", new String[] { "80" });
+        evalFile("mandelbrot.rb", new String[] { "500" });
     }
 
     public void testMeteor() throws Exception {
-        evalFile("meteor.rb", new String[] { "100" });
+        evalFile("meteor.rb", new String[] { "500" });
     }
 
     public void testNbody() throws Exception {
-        evalFile("nbody.rb", new String[] { "5000" });
+        evalFile("nbody.rb", new String[] { "100000" });
     }
 
     public void testSpectralnorm() throws Exception {
-        evalFile("spectralnorm.rb", new String[] { "50" });
+        evalFile("spectralnorm.rb", new String[] { "400" });
     }
 
     public void evalFile(String fileName, String[] params) throws Exception {

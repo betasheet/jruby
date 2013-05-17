@@ -108,7 +108,7 @@ public class YARVBlockBody extends ContextAwareBlockBody {
             // TODO make sure all border cases are supported (rest args, ...)
             if (value instanceof RubyArray && iseq.args_argc > 1) {
                 IRubyObject[] args = YARVMethod.prepareArguments(iseq, context, runtime,
-                        ((RubyArray) value).toJavaArray());
+                        ((RubyArray) value).toJavaArrayUnsafe());
 
                 // Why not setArgValues
                 scope.setArgValues(args, args.length);

@@ -355,13 +355,12 @@ public class YARVMachine {
     public IRubyObject exec(ThreadContext context, IRubyObject self, InstructionSequence iseq) {
         Ruby runtime = context.getRuntime();
 
-        RubyClass vmCore = YARVVMCore.createYARVVMCore(runtime);
         Instruction[] bytecodes = iseq.body;
 
         // Where this frames stack begins.
         int stackStart = stackTop;
         int ip = 0;
-        IRubyObject other;
+        //IRubyObject other;
 
         yarvloop: while (ip < bytecodes.length) {
 // System.err.println("Executing: " + bytecodes[ip].toString() + " (ip=" + ip +
@@ -491,7 +490,7 @@ public class YARVMachine {
                 // TODO cbase / const base difference (put by eval?
 // vm_insnhelper.c)
                 if (bytecodes[ip].l_op0 == 1) { // VM_SPECIAL_OBJECT_VMCORE
-                    push(vmCore);
+                    push(runtime.getYarvVMCore());
                 } else if (bytecodes[ip].l_op0 == 2) { // VM_SPECIAL_OBJECT_CBASE
                     push(context.getRubyClass());
                 } else if (bytecodes[ip].l_op0 == 3) { // VM_SPECIAL_OBJECT_CONST_BASE
@@ -754,13 +753,13 @@ public class YARVMachine {
                 break;
             }
             case YARVInstructions.OPT_LENGTH:
-                sendVirtual(runtime, context, self, "length", 1);
+                sendVirtual(runtime, context, self, "length", 0);
                 break;
             case YARVInstructions.OPT_SIZE:
-                sendVirtual(runtime, context, self, "size", 1);
+                sendVirtual(runtime, context, self, "size", 0);
                 break;
             case YARVInstructions.OPT_SUCC:
-                sendVirtual(runtime, context, self, "succ", 1);
+                sendVirtual(runtime, context, self, "succ", 0);
                 break;
             case YARVInstructions.OPT_NOT:
                 push(pop().isTrue() ? runtime.getFalse() : runtime.getTrue());
@@ -896,12 +895,12 @@ public class YARVMachine {
                 StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
                         context.getCurrentStaticScope());
                 scope.setVariables(blockIseq.locals);
-                scope.determineModule();
                 // TODO when evaluating method call, iteration has to proceed
 // and set argument variables accordingly.
                 blockIseq.blockBody = new YARVBlockBody(scope, arity, argumentType, blockIseq);
             }
 
+            blockIseq.blockBody.getStaticScope().determineModule();
             Binding binding = context.currentBinding(self, Visibility.PUBLIC);
 
             block = new Block(blockIseq.blockBody, binding);
