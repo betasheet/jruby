@@ -26,6 +26,7 @@ package org.jruby.test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.PrintStream;
 
 import junit.framework.TestCase;
@@ -108,6 +109,31 @@ public class TestRubyBase extends TestCase {
 
         try {
             runtime.runFromMain(new ByteArrayInputStream(script.getBytes()), "test");
+        } catch (RaiseException e) {
+            if (!(e.getException() instanceof RubySystemExit)
+                    || RubyNumeric.fix2int(((RubySystemExit) e.getException()).status()) != 0) {
+                throw e;
+            }
+        }
+// StringBuffer sb = new StringBuffer(new String(result.toByteArray()));
+// for (int idx = sb.indexOf("\n"); idx != -1; idx = sb.indexOf("\n")) {
+// sb.deleteCharAt(idx);
+// }
+
+// return sb.toString();
+        return new String(result.toByteArray());
+    }
+
+    protected String runFromMain(InputStream script) {
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        out = new PrintStream(result);
+        RubyIO lStream = new RubyIO(runtime, out);
+        runtime.getGlobalVariables().set("$stdout", lStream);
+        runtime.getGlobalVariables().set("$>", lStream);
+        runtime.getGlobalVariables().set("$stderr", lStream);
+
+        try {
+            runtime.runFromMain(script, "test");
         } catch (RaiseException e) {
             if (!(e.getException() instanceof RubySystemExit)
                     || RubyNumeric.fix2int(((RubySystemExit) e.getException()).status()) != 0) {

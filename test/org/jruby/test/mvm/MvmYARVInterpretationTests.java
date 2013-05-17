@@ -77,9 +77,8 @@ public class MvmYARVInterpretationTests extends TestRubyBase {
         cfg.setYARVEnabled(true);
         runtime = Ruby.newInstance(cfg);
 
-        String contents = readFile(TEST_BINARY_DIR + fileName + ".bin");
         String expectedOutput = readFile(EXPECTED_OUTPUTS_DIR + fileName + ".log");
-        String output = runFromMain(contents).trim();
+        String output = runFromMain(new FileInputStream(TEST_BINARY_DIR + fileName + ".bin")).trim();
 
         writeFile(OUTPUTS_DIR + fileName + ".log", output);
         

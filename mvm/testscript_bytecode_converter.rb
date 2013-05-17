@@ -1,7 +1,7 @@
 require 'fileutils'
 require "pp"
 
-$generate = false
+$generate = true
 
 $options = {
 #  :peephole_optimization    =>true,
