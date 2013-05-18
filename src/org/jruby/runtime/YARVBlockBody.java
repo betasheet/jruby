@@ -106,7 +106,7 @@ public class YARVBlockBody extends ContextAwareBlockBody {
             DynamicScope scope = context.getCurrentScope();
             // TODO only expand array if we have more than one argument to expand it to
             // TODO make sure all border cases are supported (rest args, ...)
-            if (value instanceof RubyArray && iseq.args_argc > 1) {
+            if (iseq.args_argc > 1 && value instanceof RubyArray) {
                 IRubyObject[] args = YARVMethod.prepareArguments(iseq, context, runtime,
                         ((RubyArray) value).toJavaArrayUnsafe());
 
