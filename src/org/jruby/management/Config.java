@@ -1,7 +1,6 @@
 package org.jruby.management;
 
 import java.lang.ref.SoftReference;
-
 import java.util.Arrays;
 
 import org.jruby.Ruby;
@@ -137,10 +136,6 @@ public class Config implements ConfigMBean {
 
     public boolean isRubiniusEnabled() {
         return ruby.get().getInstanceConfig().isRubiniusEnabled();
-    }
-
-    public boolean isYARVCompileEnabled() {
-        return ruby.get().getInstanceConfig().isYARVCompileEnabled();
     }
 
     public String getKCode() {

@@ -914,16 +914,8 @@ public class RubyInstanceConfig {
         return rubinius;
     }
 
-    public boolean isYARVCompileEnabled() {
-        return yarvCompile;
-    }
-
     public void setRubiniusEnabled(boolean enabled) {
         rubinius = enabled;
-    }
-
-    public void setYARVCompileEnabled(boolean enabled) {
-        yarvCompile = enabled;
     }
 
     public KCode getKCode() {
@@ -1297,7 +1289,6 @@ public class RubyInstanceConfig {
 
     private boolean yarv = false;
     private boolean rubinius = false;
-    private boolean yarvCompile = false;
     
     private boolean dumpConfig=false;
     private KCode kcode = KCode.NONE;

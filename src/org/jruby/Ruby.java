@@ -97,9 +97,7 @@ import org.jruby.common.RubyWarnings;
 import org.jruby.compiler.ASTCompiler;
 import org.jruby.compiler.ASTInspector;
 import org.jruby.compiler.JITCompiler;
-import org.jruby.compiler.NotCompilableException;
 import org.jruby.compiler.impl.StandardASMCompiler;
-import org.jruby.compiler.yarv.StandardYARVCompiler;
 import org.jruby.evaluator.ASTInterpreter;
 import org.jruby.exceptions.JumpException;
 import org.jruby.exceptions.MainExitException;
@@ -551,9 +549,9 @@ public final class Ruby {
 
                 if (config.isAssumePrinting() || config.isAssumeLoop()) {
                     runWithGetsLoop(scriptNode, config.isAssumePrinting(), config.isProcessLineEnds(),
-                            config.isSplit(), config.isYARVCompileEnabled());
+                            config.isSplit());
                 } else {
-                    runNormally(scriptNode, config.isYARVCompileEnabled());
+                    runNormally(scriptNode);
                 }
             } finally {
                 context.setFileAndLine(oldFile, oldLine);
@@ -595,20 +593,18 @@ public final class Ruby {
      * bytecode before executing.
      * @return The result of executing the specified script
      */
-    public IRubyObject runWithGetsLoop(Node scriptNode, boolean printing, boolean processLineEnds, boolean split, boolean yarvCompile) {
+    public IRubyObject runWithGetsLoop(Node scriptNode, boolean printing, boolean processLineEnds, boolean split) {
         ThreadContext context = getCurrentContext();
         
         Script script = null;
         YARVCompiledRunner runner = null;
         boolean compile = getInstanceConfig().getCompileMode().shouldPrecompileCLI();
-        if (compile || !yarvCompile) {
+        if (compile) {
             script = tryCompile(scriptNode);
             if (compile && script == null) {
                 // terminate; tryCompile will have printed out an error and we're done
                 return getNil();
             }
-        } else if (yarvCompile) {
-            runner = tryCompileYarv(scriptNode);
         }
         
         if (processLineEnds) {
@@ -668,15 +664,12 @@ public final class Ruby {
      * bytecode before execution
      * @return The result of executing the script
      */
-    public IRubyObject runNormally(Node scriptNode, boolean yarvCompile) {
+    public IRubyObject runNormally(Node scriptNode) {
         Script script = null;
         YARVCompiledRunner runner = null;
         boolean compile = getInstanceConfig().getCompileMode().shouldPrecompileCLI();
         
-        if (yarvCompile) {
-            runner = tryCompileYarv(scriptNode);
-            // FIXME: Once 1.9 compilation is supported this should be removed
-        } else if (compile || config.isShowBytecode()) {
+        if (compile || config.isShowBytecode()) {
             script = tryCompile(scriptNode, null, new JRubyClassLoader(getJRubyClassLoader()), config.isShowBytecode());
         }
 
@@ -813,23 +806,6 @@ public final class Ruby {
         }
         
         return script;
-    }
-    
-    private YARVCompiledRunner tryCompileYarv(Node node) {
-        try {
-            StandardYARVCompiler compiler = new StandardYARVCompiler(this);
-            ASTCompiler.getYARVCompiler().compile(node, compiler);
-            org.jruby.lexer.yacc.ISourcePosition p = node.getPosition();
-            if(p == null && node instanceof org.jruby.ast.RootNode) {
-                p = ((org.jruby.ast.RootNode)node).getBodyNode().getPosition();
-            }
-            return new YARVCompiledRunner(this,compiler.getInstructionSequence("<main>",p.getFile(),"toplevel"));
-        } catch (NotCompilableException nce) {
-            System.err.println("Error -- Not compileable: " + nce.getMessage());
-            return null;
-        } catch (JumpException.ReturnJump rj) {
-            return null;
-        }
     }
 
     public IRubyObject runScript(Script script) {

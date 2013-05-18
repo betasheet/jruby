@@ -32,7 +32,6 @@ public interface ConfigMBean {
     public boolean isYARVEnabled();
     public String getInputFieldSeparator();
     public boolean isRubiniusEnabled();
-    public boolean isYARVCompileEnabled();
     public String getKCode();
     public String getRecordSeparator();
     public int getSafeLevel();

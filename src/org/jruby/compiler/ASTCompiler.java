@@ -590,10 +590,6 @@ public class ASTCompiler {
                 throw new NotCompilableException("Can't compile assignment node: " + node);
         }
     }
-    
-    public static YARVNodesCompiler getYARVCompiler() {
-        return new YARVNodesCompiler();
-    }
 
     public void compileAlias(final AliasNode alias, BodyCompiler context, boolean expr) {
         CompilerCallback args = new CompilerCallback() {

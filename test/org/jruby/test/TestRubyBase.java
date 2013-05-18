@@ -71,17 +71,6 @@ public class TestRubyBase extends TestCase {
      * @return the value printed out on stdout and stderr by
      **/
     protected String eval(String script) throws Exception {
-        return eval(script, false);
-    }
-
-    /**
-     * evaluate a string and returns the standard output.
-     * 
-     * @param script
-     *            the String to eval as a String
-     * @return the value printed out on stdout and stderr by
-     **/
-    protected String eval(String script, boolean yarv) throws Exception {
         ByteArrayOutputStream result = new ByteArrayOutputStream();
         out = new PrintStream(result);
         RubyIO lStream = new RubyIO(runtime, out);
@@ -90,7 +79,7 @@ public class TestRubyBase extends TestCase {
         runtime.getGlobalVariables().set("$stderr", lStream);
 
         runtime.runNormally(runtime.parseFile(new ByteArrayInputStream(script.getBytes()), "test",
-                runtime.getCurrentContext().getCurrentScope()), yarv);
+                runtime.getCurrentContext().getCurrentScope()));
         StringBuffer sb = new StringBuffer(new String(result.toByteArray()));
         for (int idx = sb.indexOf("\n"); idx != -1; idx = sb.indexOf("\n")) {
             sb.deleteCharAt(idx);

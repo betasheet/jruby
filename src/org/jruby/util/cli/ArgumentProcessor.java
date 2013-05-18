@@ -342,8 +342,6 @@ public class ArgumentProcessor {
                         config.setCompileMode(RubyInstanceConfig.CompileMode.OFF);
                     } else if (extendedOption.equals("-y")) {
                         config.setYARVEnabled(true);
-                    } else if (extendedOption.equals("-Y")) {
-                        config.setYARVCompileEnabled(true);
                     } else if (extendedOption.equals("-R")) {
                         config.setRubiniusEnabled(true);
                     } else if (extendedOption.equals("-CIR")) {
