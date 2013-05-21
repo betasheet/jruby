@@ -8,11 +8,10 @@ import org.jruby.RubyClass;
 import org.jruby.RubyFixnum;
 import org.jruby.RubyHash;
 import org.jruby.RubyModule;
-import org.jruby.RubyObject;
 import org.jruby.RubyRange;
 import org.jruby.RubyRegexp;
 import org.jruby.RubyString;
-import org.jruby.ast.executable.YARVMachine.InstructionSequence.InlineCache;
+import org.jruby.ast.executable.YARVByteCode.InlineCache;
 import org.jruby.javasupport.util.RuntimeHelpers;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.Arity;
@@ -22,7 +21,6 @@ import org.jruby.runtime.BlockBody;
 import org.jruby.runtime.CallSite;
 import org.jruby.runtime.DynamicScope;
 import org.jruby.runtime.MethodIndex;
-import org.jruby.runtime.ObjectAllocator;
 import org.jruby.runtime.RubyEvent;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.Visibility;
@@ -45,146 +43,6 @@ public class YARVMachine {
 
     public static YARVMachine getInstance() {
         return INSTANCE.get();
-    }
-
-    public static int instruction(String name) {
-        return YARVInstructions.instruction(name);
-    }
-
-    public static class InstructionSequence extends RubyObject {
-
-        public class InlineCache {
-            public long state;
-            public IRubyObject cachedObject;
-        }
-
-        public String magic;
-        public int major;
-        public int minor;
-        public int format_type;
-        public Object misc;
-        public String name;
-        public String filename;
-        public String filefullpath;
-        public int line;
-        public String type;
-
-        public String[] locals;
-        public int local_size;
-
-        public int args_argc;
-        public String[] args_opt_labels;
-        public int args_post_len;
-        public int args_post_start;
-        public int args_rest;
-        public int args_block;
-        public int args_simple;
-
-        public Object[] exception;
-
-        public Instruction[] body;
-
-        public InstructionSequence(Ruby runtime, RubyClass metaClass, String name, String file,
-                String type) {
-            super(runtime, metaClass);
-
-            magic = "YARVInstructionSimpledataFormat";
-            major = 1;
-            minor = 1;
-            format_type = 1;
-            misc = runtime.getNil();
-            this.name = name;
-            this.filename = file;
-            this.line = 0;
-            this.type = type;
-            this.locals = new String[0];
-            this.args_argc = 0;
-            this.exception = new Object[0];
-        }
-
-        public static RubyClass createInstructionSequence(Ruby runtime) {
-            RubyClass iseq = runtime.defineClass("InstructionSequence", runtime.getClass("Data"),
-                    ObjectAllocator.NOT_ALLOCATABLE_ALLOCATOR);
-
-            iseq.defineAnnotatedMethods(InstructionSequence.class);
-
-            return iseq;
-        }
-
-        /**
-         * @return
-         */
-        public int getOptArgsLength() {
-            return args_opt_labels == null ? 0 : args_opt_labels.length;
-        }
-
-        private InlineCache[] inlineCaches = new InlineCache[1024];
-        public YARVBlockBody blockBody;
-
-        private InlineCache getInlineCache(int id) {
-            if (inlineCaches[id] == null)
-                inlineCaches[id] = new InlineCache();
-            return inlineCaches[id];
-        }
-    }
-
-    public static class Instruction {
-        public int bytecode;
-        public int line_no;
-        public String s_op0;
-        public IRubyObject o_op0;
-        public Object _tmp;
-        public long l_op0;
-        public long l_op1;
-        public int i_op1;
-        public InstructionSequence iseq_op;
-        public Instruction[] ins_op;
-        public int i_op3;
-        public int i_op2;
-
-        public int index;
-        public int methodIndex = -1;
-        public CallSite callAdapter;
-
-        public Instruction(int bytecode) {
-            this.bytecode = bytecode;
-        }
-
-        public Instruction(int bytecode, String op) {
-            this.bytecode = bytecode;
-            this.s_op0 = op;
-        }
-
-        public Instruction(int bytecode, String op, InstructionSequence op1) {
-            this.bytecode = bytecode;
-            this.s_op0 = op;
-            this.iseq_op = op1;
-        }
-
-        public Instruction(int bytecode, long op) {
-            this.bytecode = bytecode;
-            this.l_op0 = op;
-        }
-
-        public Instruction(int bytecode, IRubyObject op) {
-            this.bytecode = bytecode;
-            this.o_op0 = op;
-        }
-
-        public Instruction(int bytecode, String op, int op1, Instruction[] op2, int op3) {
-            this.bytecode = bytecode;
-            this.s_op0 = op;
-            this.i_op1 = op1;
-            this.ins_op = op2;
-            this.i_op3 = op3;
-        }
-
-        @Override
-        public String toString() {
-            return "[:" + YARVInstructions.name(bytecode) + ", "
-                    + (s_op0 != null ? s_op0 : (o_op0 != null ? o_op0.toString() : ("" + l_op0)))
-                    + "]";
-        }
     }
 
     IRubyObject[] stack = new IRubyObject[8192];
@@ -336,7 +194,7 @@ public class YARVMachine {
      *            to be executed
      * @return last value pop'd of machine stack
      */
-    public IRubyObject exec(ThreadContext context, StaticScope scope, InstructionSequence iseq) {
+    public IRubyObject exec(ThreadContext context, StaticScope scope, YARVByteCode byteCode) {
         try {
             IRubyObject self = context.getRuntime().getObject();
 
@@ -346,87 +204,97 @@ public class YARVMachine {
                 scope.setModule(context.getRuntime().getObject());
             }
 
-            return exec(context, self, iseq);
+            return exec(context, self, byteCode);
         } finally {
             context.postScopedBody();
         }
     }
 
-    public IRubyObject exec(ThreadContext context, IRubyObject self, InstructionSequence iseq) {
+    public IRubyObject exec(ThreadContext context, IRubyObject self, YARVByteCode byteCode) {
         Ruby runtime = context.getRuntime();
 
-        Instruction[] bytecodes = iseq.body;
+        byte[] body = byteCode.body;
 
         // Where this frames stack begins.
         int stackStart = stackTop;
         int ip = 0;
         // IRubyObject other;
 
-        yarvloop: while (ip < bytecodes.length) {
-// System.err.println("Executing: " + bytecodes[ip].toString() + " (ip=" + ip +
-// ")");
-            switch (bytecodes[ip].bytecode) {
+        yarvloop: while (ip < body.length) {
+            byte opCode = body[ip];
+            // System.err.println("Executing: " + YARVInstructions.name(opCode)
+// + " (ip=" + ip + ")");
+            switch (opCode) {
             case YARVInstructions.NOP:
+                ip += 1;
                 break;
-            case YARVInstructions.GETGLOBAL:
-                push(runtime.getGlobalVariables().get(bytecodes[ip].s_op0));
+            case YARVInstructions.GETGLOBAL: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
+                push(runtime.getGlobalVariables().get(op));
+                ip += 5;
                 break;
-            case YARVInstructions.SETGLOBAL:
-                runtime.getGlobalVariables().set(bytecodes[ip].s_op0, pop());
+            }
+            case YARVInstructions.SETGLOBAL: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
+                runtime.getGlobalVariables().set(op, pop());
+                ip += 5;
                 break;
+            }
             case YARVInstructions.GETLOCAL: {
                 DynamicScope scope = context.getCurrentScope().localScope;
-                int idx;
-                if (bytecodes[ip].i_op1 >= 0) {
-                    idx = bytecodes[ip].i_op1;
-                } else {
-                    idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
-                    bytecodes[ip].i_op1 = idx;
-                }
+                int idx = YARVByteCode.getInt(body, ip + 1);
+                idx = scope.getStaticScope().getNumberOfVariables() - idx;
                 push(scope.getValue(idx, 0));
+                ip += 5;
                 break;
             }
             case YARVInstructions.SETLOCAL: {
                 DynamicScope scope = context.getCurrentScope().localScope;
-                int idx;
-                if (bytecodes[ip].i_op1 >= 0) {
-                    idx = bytecodes[ip].i_op1;
-                } else {
-                    idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
-                    bytecodes[ip].i_op1 = idx;
-                }
+                int idx = YARVByteCode.getInt(body, ip + 1);
+                idx = scope.getStaticScope().getNumberOfVariables() - idx;
                 scope.setValue(idx, pop(), 0);
+                ip += 5;
                 break;
             }
             case YARVInstructions.GETDYNAMIC: {
-                int depth = (int) bytecodes[ip].l_op1;
+                int depth = YARVByteCode.getInt(body, ip + 5);
                 DynamicScope scope = context.getCurrentScope();
                 if (depth > 0) {
                     scope = scope.getNthParentScope(depth);
                 }
-                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
+                int idx = scope.getStaticScope().getNumberOfVariables()
+                        - YARVByteCode.getInt(body, ip + 1);
                 push(scope.getValue(idx, 0));
+                ip += 9;
                 break;
             }
             case YARVInstructions.SETDYNAMIC: {
-                int depth = (int) bytecodes[ip].l_op1;
+                int depth = YARVByteCode.getInt(body, ip + 5);
                 DynamicScope scope = context.getCurrentScope();
                 if (depth > 0) {
                     scope = scope.getNthParentScope(depth);
                 }
-                int idx = scope.getStaticScope().getNumberOfVariables() - (int) bytecodes[ip].l_op0;
+                int idx = scope.getStaticScope().getNumberOfVariables()
+                        - YARVByteCode.getInt(body, ip + 1);
                 scope.setValue(idx, pop(), 0);
+                ip += 9;
                 break;
             }
-            case YARVInstructions.GETINSTANCEVARIABLE:
-                push(self.getInstanceVariables().getInstanceVariable(bytecodes[ip].s_op0));
+            case YARVInstructions.GETINSTANCEVARIABLE: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
+                push(self.getInstanceVariables().getInstanceVariable(op));
+                ip += 5;
                 break;
-            case YARVInstructions.SETINSTANCEVARIABLE:
-                self.getInstanceVariables().setInstanceVariable(bytecodes[ip].s_op0, pop());
+            }
+            case YARVInstructions.SETINSTANCEVARIABLE: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
+                self.getInstanceVariables().setInstanceVariable(op, pop());
+                ip += 5;
                 break;
+            }
             case YARVInstructions.GETCLASSVARIABLE: {
                 RubyModule rubyClass = context.getRubyClass();
-                String name = bytecodes[ip].s_op0;
+                String name = (String) YARVByteCode.getConstant(body, ip + 1);
 
                 if (rubyClass == null) {
                     push(self.getMetaClass().getClassVar(name));
@@ -441,10 +309,12 @@ public class YARVMachine {
                         push(runtime.getNil());
                     }
                 }
+                ip += 5;
                 break;
             }
             case YARVInstructions.SETCLASSVARIABLE: {
                 RubyModule rubyClass = context.getCurrentScope().getStaticScope().getModule();
+                String name = (String) YARVByteCode.getConstant(body, ip + 1);
 
                 if (rubyClass == null) {
                     rubyClass = self.getMetaClass();
@@ -452,64 +322,76 @@ public class YARVMachine {
                     rubyClass = (RubyModule) (((MetaClass) rubyClass).getAttached());
                 }
 
-                rubyClass.setClassVar(bytecodes[ip].s_op0, pop());
+                rubyClass.setClassVar(name, pop());
+                ip += 5;
                 break;
             }
             case YARVInstructions.GETCONSTANT: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
                 IRubyObject klass = pop();
                 if (klass == null || klass == runtime.getNil()) {
-                    push(context.getCurrentStaticScope().getConstant(bytecodes[ip].s_op0));
+                    push(context.getCurrentStaticScope().getConstant(op));
                 } else {
-                    push(((RubyModule) klass).getConstant(bytecodes[ip].s_op0));
+                    push(((RubyModule) klass).getConstant(op));
                 }
+                ip += 5;
                 break;
             }
             case YARVInstructions.SETCONSTANT: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
                 IRubyObject klass = pop();
                 IRubyObject value = pop();
                 if (klass == null || klass == runtime.getNil()) {
-                    context.getCurrentStaticScope().setConstant(bytecodes[ip].s_op0, value);
+                    context.getCurrentStaticScope().setConstant(op, value);
                     runtime.incGlobalState();
                 } else {
-                    push(((RubyModule) klass).setConstant(bytecodes[ip].s_op0, value));
+                    push(((RubyModule) klass).setConstant(op, value));
                     runtime.incGlobalState();
                 }
+                ip += 5;
                 break;
             }
             case YARVInstructions.PUTNIL:
                 push(runtime.getNil());
+                ip += 1;
                 break;
             case YARVInstructions.PUTSELF:
                 push(self);
+                ip += 1;
                 break;
-            case YARVInstructions.PUTOBJECT:
-                // System.out.println("PUTOBJECT: " + bytecodes[ip].o_op0);
-                push(bytecodes[ip].o_op0);
+            case YARVInstructions.PUTISEQ:
+            case YARVInstructions.PUTOBJECT: {
+                IRubyObject op = (IRubyObject) YARVByteCode.getConstant(body, ip + 1);
+                push(op);
+                ip += 5;
                 break;
-            case YARVInstructions.PUTSPECIALOBJECT:
+            }
+            case YARVInstructions.PUTSPECIALOBJECT: {
                 // TODO cbase / const base difference (put by eval?
 // vm_insnhelper.c)
-                if (bytecodes[ip].l_op0 == 1) { // VM_SPECIAL_OBJECT_VMCORE
+                int op = YARVByteCode.getInt(body, ip + 1);
+                if (op == 1) { // VM_SPECIAL_OBJECT_VMCORE
                     push(runtime.getYarvVMCore());
-                } else if (bytecodes[ip].l_op0 == 2) { // VM_SPECIAL_OBJECT_CBASE
+                } else if (op == 2) { // VM_SPECIAL_OBJECT_CBASE
                     push(context.getRubyClass());
-                } else if (bytecodes[ip].l_op0 == 3) { // VM_SPECIAL_OBJECT_CONST_BASE
+                } else if (op == 3) { // VM_SPECIAL_OBJECT_CONST_BASE
                     push(context.getRubyClass());
                 } else {
                     unimplemented(YARVInstructions.PUTSPECIALOBJECT);
                 }
+                ip += 5;
                 break;
-            case YARVInstructions.PUTISEQ:
-                push(bytecodes[ip].iseq_op);
-                break;
+            }
             case YARVInstructions.DEFINECLASS: {
                 IRubyObject parentClass = pop();
                 IRubyObject cBase = pop();
-                String name = bytecodes[ip].s_op0;
-                boolean isRedefine = (parentClass == runtime.getFalse());
-                InstructionSequence cIseq = bytecodes[ip].iseq_op;
+                String name = (String) YARVByteCode.getConstant(body, ip + 1);
+                YARVByteCode bc = (YARVByteCode) YARVByteCode.getConstant(body, ip + 5);
+                int type = YARVByteCode.getInt(body, ip + 9);
 
-                switch (bytecodes[ip].i_op2) {
+                boolean isRedefine = (parentClass == runtime.getFalse());
+
+                switch (type) {
                 case 0: /* scoped: class Foo::Bar */
                 case 3: /* no scope: class Bar */
                     if (parentClass == runtime.getNil()) {
@@ -531,7 +413,7 @@ public class YARVMachine {
 
                     StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(
                             context.getCurrentStaticScope());
-                    sco.setVariables(cIseq.locals);
+                    sco.setVariables(bc.locals);
                     sco.setModule(newClass);
 
                     context.preClassEval(sco, newClass);
@@ -541,7 +423,7 @@ public class YARVMachine {
                             callTraceFunction(runtime, context, RubyEvent.CLASS);
                         }
 
-                        YARVMachine.getInstance().exec(context, newClass, cIseq);
+                        YARVMachine.getInstance().exec(context, newClass, bc);
                     } finally {
                         try {
                             if (runtime.hasEventHooks()) {
@@ -565,20 +447,26 @@ public class YARVMachine {
                 }
 
                 push(runtime.getNil());
+                ip += 13;
                 break;
             }
-            case YARVInstructions.PUTSTRING:
-                push(runtime.newString(bytecodes[ip].s_op0));
+            case YARVInstructions.PUTSTRING: {
+                String op = (String) YARVByteCode.getConstant(body, ip + 1);
+                push(runtime.newString(op));
+                ip += 5;
                 break;
+            }
             case YARVInstructions.CONCATSTRINGS: {
+                int op = YARVByteCode.getInt(body, ip + 1);
                 StringBuilder concatter = new StringBuilder();
 
-                for (int i = (int) (stackTop - bytecodes[ip].l_op0); i < stackTop; i++) {
+                for (int i = (int) (stackTop - op); i < stackTop; i++) {
                     concatter.append(stack[i].toString());
                 }
-                stackTop -= bytecodes[ip].l_op0;
+                stackTop -= op;
 
                 push(runtime.newString(concatter.toString()));
+                ip += 5;
                 break;
             }
             case YARVInstructions.TOSTRING:
@@ -586,9 +474,11 @@ public class YARVMachine {
                 if (!(top instanceof RubyString)) {
                     set(top.callMethod(context, "to_s"));
                 }
+                ip += 1;
                 break;
             case YARVInstructions.TOREGEXP: {
-                int count = (int) bytecodes[ip].l_op1;
+                int options = YARVByteCode.getInt(body, ip + 1);
+                int count = YARVByteCode.getInt(body, ip + 5);
                 byte[][] parts = new byte[count][];
                 int size = 0;
                 for (int i = count - 1; i >= 0; i--) {
@@ -605,35 +495,44 @@ public class YARVMachine {
                 for (int i = 0; i < count; i++) {
                     pattern.append(parts[i]);
                 }
-                push(RubyRegexp.newRegexp(runtime, pattern,
-                        RegexpOptions.fromJoniOptions((int) bytecodes[ip].l_op0)));
+                push(RubyRegexp.newRegexp(runtime, pattern, RegexpOptions.fromJoniOptions(options)));
+                ip += 9;
                 break;
             }
-            case YARVInstructions.NEWARRAY:
-                push(runtime.newArrayNoCopy(popArray(new IRubyObject[(int) bytecodes[ip].l_op0])));
+            case YARVInstructions.NEWARRAY: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                push(runtime.newArrayNoCopy(popArray(new IRubyObject[op])));
+                ip += 5;
                 break;
-            case YARVInstructions.DUPARRAY:
-                push(bytecodes[ip].o_op0.dup());
+            }
+            case YARVInstructions.DUPARRAY: {
+                IRubyObject op = (IRubyObject) YARVByteCode.getConstant(body, ip + 1);
+                push(op.dup());
+                ip += 5;
                 break;
+            }
             case YARVInstructions.EXPANDARRAY: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                int flag = YARVByteCode.getInt(body, ip + 5);
                 IRubyObject ary = pop();
                 if (ary != null && ary instanceof RubyArray) {
                     RubyArray array = (RubyArray) ary;
                     // for (int i = 0; i < ((int) bytecodes[ip].l_op0); i++) {
-                    for (int i = ((int) bytecodes[ip].l_op0) - 1; i >= 0; i--) {
+                    for (int i = op - 1; i >= 0; i--) {
                         push(array.eltInternal(i));
                     }
                     // TODO support for flag
                 } else {
                     push(ary);
-                    for (int i = 1; i < ((int) bytecodes[ip].l_op0); i++) {
+                    for (int i = 1; i < op; i++) {
                         push(runtime.getNil());
                     }
                 }
+                ip += 9;
                 break;
             }
             case YARVInstructions.NEWHASH: {
-                int hsize = (int) bytecodes[ip].l_op0;
+                int hsize = YARVByteCode.getInt(body, ip + 1);
                 RubyHash h = RubyHash.newHash(runtime);
                 IRubyObject v, k;
                 for (int i = hsize; i > 0; i -= 2) {
@@ -642,161 +541,274 @@ public class YARVMachine {
                     h.op_aset(context, k, v);
                 }
                 push(h);
+                ip += 5;
                 break;
             }
-            case YARVInstructions.NEWRANGE:
+            case YARVInstructions.NEWRANGE: {
                 // high, low, flag
+                int op = YARVByteCode.getInt(body, ip + 1);
                 IRubyObject end = pop();
                 IRubyObject begin = pop();
-                push(RubyRange.newRange(runtime, context, begin, end, bytecodes[ip].l_op0 != 0));
+                push(RubyRange.newRange(runtime, context, begin, end, op != 0));
+                ip += 5;
                 break;
+            }
             case YARVInstructions.POP:
                 pop();
+                ip += 1;
                 break;
             case YARVInstructions.DUP:
                 push(peek());
+                ip += 1;
                 break;
-            case YARVInstructions.DUPN:
-                dupn((int) bytecodes[ip].l_op0);
+            case YARVInstructions.DUPN: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                dupn(op);
+                ip += 5;
                 break;
+            }
             case YARVInstructions.SWAP:
                 swap();
+                ip += 1;
                 break;
-            case YARVInstructions.TOPN:
-                topn((int) bytecodes[ip].l_op0);
+            case YARVInstructions.TOPN: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                topn(op);
+                ip += 5;
                 break;
-            case YARVInstructions.SETN:
-                setn((int) bytecodes[ip].l_op0, peek());
+            }
+            case YARVInstructions.SETN: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                setn(op, peek());
+                ip += 5;
                 break;
+            }
             case YARVInstructions.SEND: {
-                ip = send(runtime, context, self, bytecodes, stackStart, ip);
+                String name = (String) YARVByteCode.getConstant(body, ip + 1);
+                int size = YARVByteCode.getInt(body, ip + 5);
+                YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(body, ip + 9);
+                int flags = YARVByteCode.getInt(body, ip + 13);
+                int icId = YARVByteCode.getInt(body, ip + 17);
+                InlineCache ic = byteCode.getInlineCache(icId);
+                ip += 21;
+                ip = send(runtime, context, self, name, size, blockByteCode, flags, ic, body,
+                        stackStart, ip);
                 break;
             }
             case YARVInstructions.LEAVE:
                 break yarvloop;
             case YARVInstructions.JUMP:
-                ip = (int) bytecodes[ip].l_op0;
+                ip = YARVByteCode.getInt(body, ip + 1);
                 continue yarvloop;
             case YARVInstructions.BRANCHIF:
-                ip = pop().isTrue() ? (int) bytecodes[ip].l_op0 : ip + 1;
+                ip = pop().isTrue() ? YARVByteCode.getInt(body, ip + 1) : ip + 5;
                 continue yarvloop;
             case YARVInstructions.BRANCHUNLESS: {
-                ip = !pop().isTrue() ? (int) bytecodes[ip].l_op0 : ip + 1;
+                ip = !pop().isTrue() ? YARVByteCode.getInt(body, ip + 1) : ip + 5;
                 continue yarvloop;
             }
             case YARVInstructions.ONCEINLINECACHE:
             case YARVInstructions.GETINLINECACHE: {
-                InlineCache ic = iseq.getInlineCache((int) bytecodes[ip].l_op1);
-                if (ic.state == runtime.getGlobalState()) {
-                    push(ic.cachedObject);
-                    ip = (int) bytecodes[ip].l_op0;
+                int op = YARVByteCode.getInt(body, ip + 1);
+                int icId = YARVByteCode.getInt(body, ip + 5);
+                InlineCache ic = byteCode.getInlineCache(icId);
+                Object cachedObject;
+                if ((cachedObject = ic.get(runtime.getGlobalState())) != null) {
+                    push((IRubyObject) cachedObject);
+                    ip = op;
                     continue yarvloop;
                 }
                 push(runtime.getNil());
+                ip += 9;
                 break;
             }
             case YARVInstructions.SETINLINECACHE: {
-                InlineCache ic = iseq.getInlineCache((int) bytecodes[ip].l_op0);
-                ic.state = runtime.getGlobalState();
-                ic.cachedObject = peek();
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                ic.update(runtime.getGlobalState(), peek());
+                ip += 5;
                 break;
             }
-            case YARVInstructions.OPT_PLUS:
+            case YARVInstructions.OPT_PLUS: {
                 // op_plus(runtime, context, self, pop(), pop());
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "+");
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "+");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_MINUS:
+            }
+            case YARVInstructions.OPT_MINUS: {
                 // op_minus(runtime, context, self, pop(), pop());
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "-");
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "-");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_MULT:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "*");
+            }
+            case YARVInstructions.OPT_MULT: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "*");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_DIV:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "/");
+            }
+            case YARVInstructions.OPT_DIV: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "/");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_MOD:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "%");
+            }
+            case YARVInstructions.OPT_MOD: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "%");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_EQ:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "==");
+            }
+            case YARVInstructions.OPT_EQ: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "==");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_NEQ:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "!=");
+            }
+            case YARVInstructions.OPT_NEQ: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "!=");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_LT:
+            }
+            case YARVInstructions.OPT_LT: {
                 // op_lt(runtime, context, self, pop(), pop());
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "<");
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "<");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_LE:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "<=");
+            }
+            case YARVInstructions.OPT_LE: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "<=");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_LTLT:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "<<");
+            }
+            case YARVInstructions.OPT_LTLT: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "<<");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_GT:
+            }
+            case YARVInstructions.OPT_GT: {
                 // op_gt(runtime, context, self, pop(), pop());
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, ">");
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, ">");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_GE:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, ">=");
+            }
+            case YARVInstructions.OPT_GE: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, ">=");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_AREF:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "[]");
+            }
+            case YARVInstructions.OPT_AREF: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "[]");
+                ip += 5;
                 break;
+            }
             case YARVInstructions.OPT_ASET: {
                 // YARV will never emit this, for some reason.
                 // IRubyObject value = pop();
                 // other = pop();
                 // push(RuntimeHelpers.invoke(context, pop(), "[]=", other,
 // value));
-                sendVirtual2Args(runtime, context, bytecodes[ip], self, "[]=");
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual2Args(runtime, context, ic, self, "[]=");
+                ip += 5;
                 break;
             }
-            case YARVInstructions.OPT_LENGTH:
-                sendVirtual0Args(runtime, context, bytecodes[ip], self, "length");
+            case YARVInstructions.OPT_LENGTH: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual0Args(runtime, context, ic, self, "length");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_SIZE:
-                sendVirtual0Args(runtime, context, bytecodes[ip], self, "size");
+            }
+            case YARVInstructions.OPT_SIZE: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual0Args(runtime, context, ic, self, "size");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_SUCC:
-                sendVirtual0Args(runtime, context, bytecodes[ip], self, "succ");
+            }
+            case YARVInstructions.OPT_SUCC: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual0Args(runtime, context, ic, self, "succ");
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_NOT:
+            }
+            case YARVInstructions.OPT_NOT: {
                 push(pop().isTrue() ? runtime.getFalse() : runtime.getTrue());
+                ip += 5;
                 break;
-            case YARVInstructions.OPT_REGEXPMATCH1:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "=~", bytecodes[ip].o_op0,
-                        peek());
+            }
+            case YARVInstructions.OPT_REGEXPMATCH1: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                IRubyObject op1 = (IRubyObject) YARVByteCode.getConstant(body, ip + 5);
+                sendVirtual1Arg(runtime, context, ic, self, "=~", op1, peek());
                 // push(bytecodes[ip].o_op0.callMethod(context, "=~", peek()));
+                ip += 9;
                 break;
-            case YARVInstructions.OPT_REGEXPMATCH2:
-                sendVirtual1Arg(runtime, context, bytecodes[ip], self, "=~");
+            }
+            case YARVInstructions.OPT_REGEXPMATCH2: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
+                sendVirtual1Arg(runtime, context, ic, self, "=~");
+                ip += 5;
                 break;
-            case YARVInstructions.ANSWER:
+            }
+            case YARVInstructions.ANSWER: {
+                int op = YARVByteCode.getInt(body, ip + 1);
+                InlineCache ic = byteCode.getInlineCache(op);
                 push(runtime.newFixnum(42));
+                ip += 1;
                 break;
+            }
             case YARVInstructions.TRACE:
                 // System.err.println("Trace: " + bytecodes[ip].l_op0);
+                ip += 1;
                 break;
             case YARVInstructions.THROW: {
+                int op = YARVByteCode.getInt(body, ip + 1);
                 IRubyObject throwObj = pop();
-                switch ((int) bytecodes[ip].l_op0) {
+                switch (op) {
                 case YARVInstructions.RUBY_TAG_RETURN:
                     throw context.returnJump(throwObj);
                 case YARVInstructions.RUBY_TAG_BREAK:
                     RuntimeHelpers.breakJump(context, throwObj);
                 default:
-                    unimplemented(bytecodes[ip].bytecode);
+                    unimplemented(opCode);
                 }
+                ip += 5;
                 break;
             }
 
             default:
-                unimplemented(bytecodes[ip].bytecode);
+                unimplemented(opCode);
+                ip += 1;
                 break;
             }
-            ip++;
         }
 
         return pop();
@@ -808,7 +820,7 @@ public class YARVMachine {
         runtime.callEventHooks(context, event, context.getFile(), context.getLine(), name, type);
     }
 
-    private void op_plus(Ruby runtime, ThreadContext context, Instruction instr, IRubyObject self,
+    private void op_plus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -820,12 +832,12 @@ public class YARVMachine {
                 push(runtime.newFixnum(result));
             }
         } else {
-            sendVirtual1Arg(runtime, context, instr, self, "+", receiver, other);
+            sendVirtual1Arg(runtime, context, ic, self, "+", receiver, other);
             // push(receiver.callMethod(context, "+", other));
         }
     }
 
-    private void op_minus(Ruby runtime, ThreadContext context, Instruction instr, IRubyObject self,
+    private void op_minus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -837,12 +849,12 @@ public class YARVMachine {
                 push(runtime.newFixnum(result));
             }
         } else {
-            sendVirtual1Arg(runtime, context, instr, self, "-", receiver, other);
+            sendVirtual1Arg(runtime, context, ic, self, "-", receiver, other);
             // push(receiver.callMethod(context, "-", other));
         }
     }
 
-    private void op_lt(Ruby runtime, ThreadContext context, Instruction instr, IRubyObject self,
+    private void op_lt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -850,12 +862,12 @@ public class YARVMachine {
 
             push(runtime.newBoolean(receiverValue < otherValue));
         } else {
-            sendVirtual1Arg(runtime, context, instr, self, "<", receiver, other);
+            sendVirtual1Arg(runtime, context, ic, self, "<", receiver, other);
             // push(receiver.callMethod(context, "<", other));
         }
     }
 
-    private void op_gt(Ruby runtime, ThreadContext context, Instruction instr, IRubyObject self,
+    private void op_gt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -863,72 +875,68 @@ public class YARVMachine {
 
             push(runtime.newBoolean(receiverValue > otherValue));
         } else {
-            sendVirtual1Arg(runtime, context, instr, self, ">", receiver, other);
+            sendVirtual1Arg(runtime, context, ic, self, ">", receiver, other);
             // push(receiver.callMethod(context, ">", other));
         }
     }
 
-    private int send(Ruby runtime, ThreadContext context, IRubyObject self,
-            Instruction[] bytecodes, int stackStart, int ip) {
-        Instruction instruction = bytecodes[ip];
-        String name = instruction.s_op0;
-        int size = instruction.i_op1;
-        int flags = instruction.i_op3;
-
+    private int send(Ruby runtime, ThreadContext context, IRubyObject self, String name, int size,
+            YARVByteCode blockByteCode, int flags, InlineCache ic, byte[] body, int stackStart,
+            int nextInstructionPos) {
         Block block = null;
 
-        InstructionSequence blockIseq = bytecodes[ip].iseq_op;
-        if (blockIseq != null) {
+        if (blockByteCode != null) {
             // System.err.println("block support not implemented");
 
-            if (blockIseq.blockBody == null) {
+            if (blockByteCode.blockBody == null) {
                 // TODO argumentType array (for lambdas?)
-                boolean opts = blockIseq.getOptArgsLength() > 0 || blockIseq.args_rest > 0;
-                boolean req = blockIseq.args_argc > 0;
+                boolean opts = blockByteCode.getOptArgsLength() > 0 || blockByteCode.args_rest > 0;
+                boolean req = blockByteCode.args_argc > 0;
                 Arity arity;
                 int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
                 if (!req && !opts) {
                     arity = Arity.noArguments();
                     argumentType = BlockBody.ZERO_ARGS;
                 } else if (req && !opts) {
-                    arity = Arity.fixed(blockIseq.args_argc);
+                    arity = Arity.fixed(blockByteCode.args_argc);
                 } else if (opts && !req) {
                     arity = Arity.optional();
-                    if (blockIseq.args_rest > 0 && blockIseq.getOptArgsLength() <= 0) {
+                    if (blockByteCode.args_rest > 0 && blockByteCode.getOptArgsLength() <= 0) {
                         argumentType = BlockBody.SINGLE_RESTARG;
                     }
                 } else {
-                    arity = Arity.required(blockIseq.args_argc);
+                    arity = Arity.required(blockByteCode.args_argc);
                 }
 
                 StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
                         context.getCurrentStaticScope());
-                scope.setVariables(blockIseq.locals);
+                scope.setVariables(blockByteCode.locals);
                 // TODO when evaluating method call, iteration has to proceed
 // and set argument variables accordingly.
-                blockIseq.blockBody = new YARVBlockBody(scope, arity, argumentType, blockIseq);
+                blockByteCode.blockBody = new YARVBlockBody(scope, arity, argumentType,
+                        blockByteCode);
             }
 
-            blockIseq.blockBody.getStaticScope().determineModule();
+            blockByteCode.blockBody.getStaticScope().determineModule();
             Binding binding = context.currentBinding(self, Visibility.PUBLIC);
 
-            block = new Block(blockIseq.blockBody, binding);
+            block = new Block(blockByteCode.blockBody, binding);
         } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
             System.err.println("block arg support not implemented");
         }
 
-        if (instruction.callAdapter == null) {
+        if (ic.cachedObject == null) {
             if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
                 if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
-                    instruction.callAdapter = MethodIndex.getCallSite(name);
+                    ic.cachedObject = MethodIndex.getCallSite(name);
                 } else {
-                    instruction.callAdapter = MethodIndex.getFunctionalCallSite(name);
-
+                    ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
                 }
             } else {
-                instruction.callAdapter = MethodIndex.getVariableCallSite(name);
+                ic.cachedObject = MethodIndex.getVariableCallSite(name);
             }
         }
+        CallSite callAdapter = (CallSite) ic.cachedObject;
 
         if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
             RubyArray splatArray = (RubyArray) pop();
@@ -943,9 +951,9 @@ public class YARVMachine {
             IRubyObject arg1 = pop();
 
             IRubyObject recv = pop();
-            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+            if (TAILCALL_OPT && isTailCall(context, body, flags, recv, self, flags, name)) {
                 stackTop = stackStart;
-                ip = -1;
+                nextInstructionPos = -1;
 
                 IRubyObject[] vals = context.getCurrentScope().getValues();
                 vals[0] = arg1;
@@ -953,9 +961,9 @@ public class YARVMachine {
                 vals[2] = arg3;
             } else {
                 if (block == null) {
-                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2, arg3));
+                    push(callAdapter.call(context, self, recv, arg1, arg2, arg3));
                 } else {
-                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2, arg3, block));
+                    push(callAdapter.call(context, self, recv, arg1, arg2, arg3, block));
                 }
             }
             break;
@@ -965,18 +973,18 @@ public class YARVMachine {
             IRubyObject arg1 = pop();
 
             IRubyObject recv = pop();
-            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+            if (TAILCALL_OPT && isTailCall(context, body, flags, recv, self, flags, name)) {
                 stackTop = stackStart;
-                ip = -1;
+                nextInstructionPos = -1;
 
                 IRubyObject[] vals = context.getCurrentScope().getValues();
                 vals[0] = arg1;
                 vals[1] = arg2;
             } else {
                 if (block == null) {
-                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2));
+                    push(callAdapter.call(context, self, recv, arg1, arg2));
                 } else {
-                    push(instruction.callAdapter.call(context, self, recv, arg1, arg2, block));
+                    push(callAdapter.call(context, self, recv, arg1, arg2, block));
                 }
             }
             break;
@@ -985,31 +993,31 @@ public class YARVMachine {
             IRubyObject arg1 = pop();
 
             IRubyObject recv = pop();
-            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+            if (TAILCALL_OPT && isTailCall(context, body, flags, recv, self, flags, name)) {
                 stackTop = stackStart;
-                ip = -1;
+                nextInstructionPos = -1;
 
                 IRubyObject[] vals = context.getCurrentScope().getValues();
                 vals[0] = arg1;
             } else {
                 if (block == null) {
-                    push(instruction.callAdapter.call(context, self, recv, arg1));
+                    push(callAdapter.call(context, self, recv, arg1));
                 } else {
-                    push(instruction.callAdapter.call(context, self, recv, arg1, block));
+                    push(callAdapter.call(context, self, recv, arg1, block));
                 }
             }
             break;
         }
         case 0: {
             IRubyObject recv = pop();
-            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+            if (TAILCALL_OPT && isTailCall(context, body, flags, recv, self, flags, name)) {
                 stackTop = stackStart;
-                ip = -1;
+                nextInstructionPos = -1;
             } else {
                 if (block == null) {
-                    push(instruction.callAdapter.call(context, self, recv));
+                    push(callAdapter.call(context, self, recv));
                 } else {
-                    push(instruction.callAdapter.call(context, self, recv, block));
+                    push(callAdapter.call(context, self, recv, block));
                 }
             }
             break;
@@ -1020,9 +1028,9 @@ public class YARVMachine {
             popArray(args);
 
             IRubyObject recv = pop();
-            if (TAILCALL_OPT && isTailCall(context, bytecodes, flags, recv, self, flags, name)) {
+            if (TAILCALL_OPT && isTailCall(context, body, flags, recv, self, flags, name)) {
                 stackTop = stackStart;
-                ip = -1;
+                nextInstructionPos = -1;
 
                 IRubyObject[] vals = context.getCurrentScope().getValues();
                 for (int i = 0; i < size; i++) {
@@ -1030,115 +1038,115 @@ public class YARVMachine {
                 }
             } else {
                 if (block == null) {
-                    push(instruction.callAdapter.call(context, self, recv, args));
+                    push(callAdapter.call(context, self, recv, args));
                 } else {
-                    push(instruction.callAdapter.call(context, self, recv, args, block));
+                    push(callAdapter.call(context, self, recv, args, block));
                 }
             }
             break;
         }
         }
 
-        return ip;
+        return nextInstructionPos;
     }
 
-    private boolean isTailCall(ThreadContext context, Instruction[] bytecodes, int ip,
+    private boolean isTailCall(ThreadContext context, byte[] body, int nextInstructionPos,
             IRubyObject recv, IRubyObject self, int flags, String name) {
-        return (bytecodes[ip + 1].bytecode == YARVInstructions.LEAVE || (flags & YARVInstructions.TAILCALL_FLAG) == YARVInstructions.TAILCALL_FLAG)
+        return (body[nextInstructionPos] == YARVInstructions.LEAVE || (flags & YARVInstructions.TAILCALL_FLAG) == YARVInstructions.TAILCALL_FLAG)
                 && recv == self && name.equals(context.getFrameName());
     }
 
-    private void sendVirtual(Ruby runtime, ThreadContext context, Instruction instr,
-            IRubyObject self, String name, int size) {
+    private void sendVirtual(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
+            String name, int size) {
         if (size == 3) {
-            sendVirtual3Args(runtime, context, instr, self, name);
+            sendVirtual3Args(runtime, context, ic, self, name);
         } else if (size == 2) {
-            sendVirtual2Args(runtime, context, instr, self, name);
+            sendVirtual2Args(runtime, context, ic, self, name);
         } else if (size == 1) {
-            sendVirtual1Arg(runtime, context, instr, self, name);
+            sendVirtual1Arg(runtime, context, ic, self, name);
         } else if (size == 0) {
-            sendVirtual0Args(runtime, context, instr, self, name);
+            sendVirtual0Args(runtime, context, ic, self, name);
         } else {
-            sendVirtualManyArgs(runtime, context, instr, self, name, size);
+            sendVirtualManyArgs(runtime, context, ic, self, name, size);
         }
     }
 
-    private void sendVirtual0Args(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual0Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
-        
-        push(instr.callAdapter.call(context, self, pop()));
+
+        push(((CallSite) ic.cachedObject).call(context, self, pop()));
     }
 
-    private void sendVirtual1Arg(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual1Arg(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
-        
+
         IRubyObject arg1 = pop();
-        push(instr.callAdapter.call(context, self, pop(), arg1));
+        push(((CallSite) ic.cachedObject).call(context, self, pop(), arg1));
     }
 
-    private void sendVirtual1Arg(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual1Arg(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, IRubyObject recv, IRubyObject arg1) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
-        
-        push(instr.callAdapter.call(context, self, recv, arg1));
+
+        push(((CallSite) ic.cachedObject).call(context, self, recv, arg1));
     }
 
-    private void sendVirtual2Args(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual2Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
-        
+
         IRubyObject arg2 = pop();
         IRubyObject arg1 = pop();
-        push(instr.callAdapter.call(context, self, pop(), arg1, arg2));
+        push(((CallSite) ic.cachedObject).call(context, self, pop(), arg1, arg2));
     }
 
-    private void sendVirtual2Args(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual2Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, IRubyObject recv, IRubyObject arg1, IRubyObject arg2) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
-        
-        push(instr.callAdapter.call(context, self, recv, arg1, arg2));
+
+        push(((CallSite) ic.cachedObject).call(context, self, recv, arg1, arg2));
     }
 
-    private void sendVirtual3Args(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual3Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
 
         IRubyObject arg3 = pop();
         IRubyObject arg2 = pop();
         IRubyObject arg1 = pop();
-        push(instr.callAdapter.call(context, self, pop(), arg1, arg2, arg3));
+        push(((CallSite) ic.cachedObject).call(context, self, pop(), arg1, arg2, arg3));
     }
 
-    private void sendVirtual3Args(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtual3Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, IRubyObject recv, IRubyObject arg1, IRubyObject arg2,
             IRubyObject arg3) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
 
-        push(instr.callAdapter.call(context, self, recv, arg1, arg2, arg3));
+        push(((CallSite) ic.cachedObject).call(context, self, recv, arg1, arg2, arg3));
     }
 
-    private void sendVirtualManyArgs(Ruby runtime, ThreadContext context, Instruction instr,
+    private void sendVirtualManyArgs(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, int size) {
-        if (instr.callAdapter == null) {
-            instr.callAdapter = MethodIndex.getCallSite(name);
+        if (ic.cachedObject == null) {
+            ic.cachedObject = MethodIndex.getCallSite(name);
         }
-        
+
         IRubyObject[] args;
         if (size == 0) {
             args = IRubyObject.NULL_ARRAY;
@@ -1146,7 +1154,7 @@ public class YARVMachine {
             args = new IRubyObject[size];
             popArray(args);
         }
-        push(instr.callAdapter.call(context, self, pop(), args));
+        push(((CallSite) ic.cachedObject).call(context, self, pop(), args));
     }
 
     // TODO caching call sites do not make sense if not stored. (store with

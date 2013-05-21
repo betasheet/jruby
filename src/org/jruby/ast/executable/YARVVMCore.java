@@ -29,7 +29,6 @@ import org.jruby.RubyModule;
 import org.jruby.RubyObject;
 import org.jruby.RubySymbol;
 import org.jruby.anno.JRubyMethod;
-import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.common.IRubyWarnings.ID;
 import org.jruby.internal.runtime.methods.WrapperMethod;
 import org.jruby.internal.runtime.methods.YARVMethod;
@@ -95,7 +94,7 @@ public class YARVVMCore extends RubyObject {
         
         RubyModule containingClass = (RubyModule) arg0;
         String mname = ((RubySymbol) arg1).asJavaString();
-        InstructionSequence iseq = ((InstructionSequence) arg2);
+        YARVByteCode byteCode = ((YARVByteCode) arg2);
 
         if (containingClass == null) {
             throw runtime.newTypeError("No class to add method.");
@@ -121,10 +120,10 @@ public class YARVVMCore extends RubyObject {
         }
         
         StaticScope sco = runtime.getStaticScopeFactory().newLocalScope(context.getCurrentStaticScope());
-        sco.setVariables(iseq.locals);
+        sco.setVariables(byteCode.locals);
         sco.determineModule();
         
-        YARVMethod newMethod = new YARVMethod(containingClass, iseq, sco,
+        YARVMethod newMethod = new YARVMethod(containingClass, byteCode, sco,
                 visibility);
 
         containingClass.addMethod(mname, newMethod);

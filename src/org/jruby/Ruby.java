@@ -90,6 +90,7 @@ import org.jruby.ast.executable.AbstractScript;
 import org.jruby.ast.executable.RubiniusRunner;
 import org.jruby.ast.executable.RuntimeCache;
 import org.jruby.ast.executable.Script;
+import org.jruby.ast.executable.YARVByteCode;
 import org.jruby.ast.executable.YARVCompiledRunner;
 import org.jruby.ast.executable.YARVVMCore;
 import org.jruby.common.IRubyWarnings.ID;
@@ -1449,6 +1450,7 @@ public final class Ruby {
         
         if(config.isYARVEnabled()) {
             yarvVMCore = YARVVMCore.createYARVVMCore(this);
+            yarvByteCode = YARVByteCode.createYARVByteCode(this);
         }
         
         if (is1_9()) {
@@ -4359,6 +4361,10 @@ public final class Ruby {
     public RubyClass getYarvVMCore() {
         return yarvVMCore;
     }
+    
+    public RubyClass getYarvByteCode() {
+        return yarvByteCode;
+    }
 
     public long getHashSeedK0() {
         return hashSeedK0;
@@ -4458,7 +4464,7 @@ public final class Ruby {
             syntaxError, standardError, loadError, notImplementedError, securityError, noMemoryError,
             regexpError, eofError, threadError, concurrencyError, systemStackError, zeroDivisionError, floatDomainError, mathDomainError,
             encodingError, encodingCompatibilityError, converterNotFoundError, undefinedConversionError,
-            invalidByteSequenceError, fiberError, randomClass, keyError, yarvVMCore;
+            invalidByteSequenceError, fiberError, randomClass, keyError, yarvVMCore, yarvByteCode;
 
     /**
      * All the core modules we keep direct references to, for quick access and

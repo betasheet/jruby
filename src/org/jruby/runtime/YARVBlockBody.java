@@ -24,8 +24,8 @@ package org.jruby.runtime;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyModule;
+import org.jruby.ast.executable.YARVByteCode;
 import org.jruby.ast.executable.YARVMachine;
-import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.exceptions.JumpException;
 import org.jruby.internal.runtime.methods.YARVMethod;
 import org.jruby.parser.StaticScope;
@@ -37,13 +37,12 @@ import org.jruby.runtime.builtin.IRubyObject;
  */
 public class YARVBlockBody extends ContextAwareBlockBody {
 
-    private InstructionSequence iseq;
+    private YARVByteCode byteCode;
 
-    public YARVBlockBody(StaticScope scope, Arity arity, int argumentType,
-            YARVMachine.InstructionSequence iseq) {
+    public YARVBlockBody(StaticScope scope, Arity arity, int argumentType, YARVByteCode byteCode) {
         super(scope, arity, argumentType);
 
-        this.iseq = iseq;
+        this.byteCode = byteCode;
     }
 
     @Override
@@ -100,14 +99,15 @@ public class YARVBlockBody extends ContextAwareBlockBody {
         }
     }
 
-    private void prepareArguments(ThreadContext context, IRubyObject value, boolean alreadyArray, Ruby runtime) {
+    private void prepareArguments(ThreadContext context, IRubyObject value, boolean alreadyArray,
+            Ruby runtime) {
         // TODO arg size checks
         if (argumentType != ZERO_ARGS) {
             DynamicScope scope = context.getCurrentScope();
             // TODO only expand array if we have more than one argument to expand it to
             // TODO make sure all border cases are supported (rest args, ...)
-            if (iseq.args_argc > 1 && value instanceof RubyArray) {
-                IRubyObject[] args = YARVMethod.prepareArguments(iseq, context, runtime,
+            if (byteCode.args_argc > 1 && value instanceof RubyArray) {
+                IRubyObject[] args = YARVMethod.prepareArguments(byteCode, context, runtime,
                         ((RubyArray) value).toJavaArrayUnsafe());
 
                 // Why not setArgValues
@@ -122,7 +122,7 @@ public class YARVBlockBody extends ContextAwareBlockBody {
         // This while loop is for restarting the block call in case a 'redo' fires.
         while (true) {
             try {
-                return YARVMachine.getInstance().exec(context, self, iseq);
+                return YARVMachine.getInstance().exec(context, self, byteCode);
             } catch (JumpException.RedoJump rj) {
                 context.pollThreadEvents();
                 // do nothing, allow loop to redo
@@ -139,7 +139,8 @@ public class YARVBlockBody extends ContextAwareBlockBody {
         return self;
     }
 
-    // TODO this is just copied from InterpretedBlock for now. might have to be handled differently here.
+    // TODO this is just copied from InterpretedBlock for now. might have to be
+    // handled differently here.
     private IRubyObject handleNextJump(ThreadContext context, JumpException.NextJump nj,
             Block.Type type) {
         return nj.getValue() == null ? context.runtime.getNil() : (IRubyObject) nj.getValue();
@@ -147,12 +148,12 @@ public class YARVBlockBody extends ContextAwareBlockBody {
 
     @Override
     public String getFile() {
-        return iseq.filename;
+        return byteCode.filename;
     }
 
     @Override
     public int getLine() {
-        return iseq.line;
+        return byteCode.line;
     }
 
 }

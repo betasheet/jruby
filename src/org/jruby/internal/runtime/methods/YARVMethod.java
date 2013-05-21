@@ -1,30 +1,25 @@
-/***** BEGIN LICENSE BLOCK *****
- * Version: CPL 1.0/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Common Public
- * License Version 1.0 (the "License"); you may not use this file
- * except in compliance with the License. You may obtain a copy of
- * the License at http://www.eclipse.org/legal/cpl-v10.html
- *
- * Software distributed under the License is distributed on an "AS
- * IS" basis, WITHOUT WARRANTY OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * rights and limitations under the License.
- *
- * Copyright (C) 2007 Ola Bini <ola@ologix.com>
- * 
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the CPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the CPL, the GPL or the LGPL.
- ***** END LICENSE BLOCK *****/
+/*****
+ * BEGIN LICENSE BLOCK ***** Version: CPL 1.0/GPL 2.0/LGPL 2.1 The contents of
+ * this file are subject to the Common Public License Version 1.0 (the
+ * "License"); you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.eclipse.org/legal/cpl-v10.html Software distributed under the
+ * License is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND,
+ * either express or implied. See the License for the specific language
+ * governing rights and limitations under the License. Copyright (C) 2007 Ola
+ * Bini <ola@ologix.com> Alternatively, the contents of this file may be used
+ * under the terms of either of the GNU General Public License Version 2 or
+ * later (the "GPL"), or the GNU Lesser General Public License Version 2.1 or
+ * later (the "LGPL"), in which case the provisions of the GPL or the LGPL are
+ * applicable instead of those above. If you wish to allow use of your version
+ * of this file only under the terms of either the GPL or the LGPL, and not to
+ * allow others to use your version of this file under the terms of the CPL,
+ * indicate your decision by deleting the provisions above and replace them with
+ * the notice and other provisions required by the GPL or the LGPL. If you do
+ * not delete the provisions above, a recipient may use your version of this
+ * file under the terms of any one of the CPL, the GPL or the LGPL. END LICENSE
+ * BLOCK
+ *****/
 package org.jruby.internal.runtime.methods;
 
 import java.util.ArrayList;
@@ -32,8 +27,8 @@ import java.util.ArrayList;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyModule;
+import org.jruby.ast.executable.YARVByteCode;
 import org.jruby.ast.executable.YARVMachine;
-import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.exceptions.JumpException;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.Arity;
@@ -49,95 +44,105 @@ import org.jruby.runtime.builtin.IRubyObject;
  * @version $Revision: 1.2 $
  */
 public class YARVMethod extends DynamicMethod {
-    private YARVMachine.InstructionSequence iseq;
+    private YARVByteCode byteCode;
     private StaticScope staticScope;
     private Arity arity;
 
-    public YARVMethod(RubyModule implementationClass, YARVMachine.InstructionSequence iseq, StaticScope staticScope, Visibility visibility) {
+    public YARVMethod(RubyModule implementationClass, YARVByteCode byteCode,
+            StaticScope staticScope, Visibility visibility) {
         super(implementationClass, visibility, CallConfiguration.FrameFullScopeFull);
         this.staticScope = staticScope;
-        this.iseq = iseq;
+        this.byteCode = byteCode;
 
-        boolean opts = iseq.getOptArgsLength() > 0 || iseq.args_rest > 0;
-        boolean req = iseq.args_argc > 0;
-        if(!req && !opts) {
+        boolean opts = byteCode.getOptArgsLength() > 0 || byteCode.args_rest > 0;
+        boolean req = byteCode.args_argc > 0;
+        if (!req && !opts) {
             this.arity = Arity.noArguments();
-        } else if(req && !opts) {
-            this.arity = Arity.fixed(iseq.args_argc);
-        } else if(opts && !req) {
+        } else if (req && !opts) {
+            this.arity = Arity.fixed(byteCode.args_argc);
+        } else if (opts && !req) {
             this.arity = Arity.optional();
         } else {
-            this.arity = Arity.required(iseq.args_argc);
+            this.arity = Arity.required(byteCode.args_argc);
         }
     }
 
-    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule klazz, String name, IRubyObject[] args, Block block) {
-    	assert args != null;
-        
+    public IRubyObject call(ThreadContext context, IRubyObject self, RubyModule klazz, String name,
+            IRubyObject[] args, Block block) {
+        assert args != null;
+
         Ruby runtime = context.getRuntime();
-        
+
         callConfig.pre(context, self, klazz, name, block, staticScope);
 
         YARVMachine ym = YARVMachine.getInstance();
         int savedStackTop = ym.stackTop;
-        
+
         try {
-            args = prepareArguments(iseq, context, runtime, args);
+            args = prepareArguments(byteCode, context, runtime, args);
             getArity().checkArity(runtime, args);
 
-            if (runtime.hasEventHooks()) traceCall(context, runtime, name);
+            if (runtime.hasEventHooks())
+                traceCall(context, runtime, name);
 
             DynamicScope scope = context.getCurrentScope();
-            
+
             // Why not setArgValues
             scope.setArgValues(args, args.length);
 
-            return ym.exec(context, self, iseq);
+            return ym.exec(context, self, byteCode);
         } catch (JumpException.ReturnJump rj) {
-        	if (rj.getTarget() == context.getFrameJumpTarget()){
+            if (rj.getTarget() == context.getFrameJumpTarget()) {
                 ym.stackTop = savedStackTop;
-        	    return (IRubyObject) rj.getValue();
-        	}
-            
-       		throw rj;
+                return (IRubyObject) rj.getValue();
+            }
+
+            throw rj;
         } finally {
-            if (runtime.hasEventHooks()) traceReturn(context, runtime, name);
+            if (runtime.hasEventHooks())
+                traceReturn(context, runtime, name);
 
             callConfig.post(context);
         }
     }
 
-    public static IRubyObject[] prepareArguments(InstructionSequence iseq, ThreadContext context, Ruby runtime, IRubyObject[] args) {
-        context.setFileAndLine(iseq.filename, -1);
+    public static IRubyObject[] prepareArguments(YARVByteCode byteCode, ThreadContext context,
+            Ruby runtime, IRubyObject[] args) {
+        context.setFileAndLine(byteCode.filename, -1);
 
-        int expectedArgsCount = iseq.args_argc;
-        int restArg = iseq.args_rest;
-        boolean hasOptArgs = iseq.getOptArgsLength() > 0;
+        int expectedArgsCount = byteCode.args_argc;
+        int restArg = byteCode.args_rest;
+        boolean hasOptArgs = byteCode.getOptArgsLength() > 0;
 
         if (expectedArgsCount > args.length) {
-            throw runtime.newArgumentError("Wrong # of arguments(" + args.length + " for " + expectedArgsCount + ")");
+            throw runtime.newArgumentError("Wrong # of arguments(" + args.length + " for "
+                    + expectedArgsCount + ")");
         }
 
-        // optArgs and restArgs require more work, so isolate them and ArrayList creation here
+        // optArgs and restArgs require more work, so isolate them and ArrayList
+// creation here
         if (hasOptArgs || restArg != -1) {
-            return prepareOptOrRestArgs(iseq, context, runtime, args, expectedArgsCount, restArg, hasOptArgs);
+            return prepareOptOrRestArgs(byteCode, context, runtime, args, expectedArgsCount,
+                    restArg, hasOptArgs);
         }
         return args;
     }
 
-    private static IRubyObject[] prepareOptOrRestArgs(InstructionSequence iseq, ThreadContext context, Ruby runtime, IRubyObject[] args, int expectedArgsCount, int restArg, boolean hasOptArgs) {
+    private static IRubyObject[] prepareOptOrRestArgs(YARVByteCode byteCode, ThreadContext context,
+            Ruby runtime, IRubyObject[] args, int expectedArgsCount, int restArg, boolean hasOptArgs) {
         if (restArg == 0 && hasOptArgs) {
-            int opt = expectedArgsCount + iseq.getOptArgsLength();
+            int opt = expectedArgsCount + byteCode.getOptArgsLength();
 
             if (opt < args.length) {
-                throw runtime.newArgumentError("wrong # of arguments(" + args.length + " for " + opt + ")");
+                throw runtime.newArgumentError("wrong # of arguments(" + args.length + " for "
+                        + opt + ")");
             }
         }
-        
-        int count = expectedArgsCount + iseq.getOptArgsLength() + iseq.args_rest;
+
+        int count = expectedArgsCount + byteCode.getOptArgsLength() + byteCode.args_rest;
 
         ArrayList<IRubyObject> allArgs = new ArrayList<IRubyObject>();
-        
+
         // Combine static and optional args into a single list allArgs
         for (int i = 0; i < count && i < args.length; i++) {
             allArgs.add(args[i]);
@@ -158,33 +163,35 @@ public class YARVMethod extends DynamicMethod {
                 context.getCurrentScope().setValue(restArg, array, 0);
             }
         }
-        
-        args = (IRubyObject[])allArgs.toArray(new IRubyObject[allArgs.size()]);
+
+        args = (IRubyObject[]) allArgs.toArray(new IRubyObject[allArgs.size()]);
         return args;
     }
-    
+
     private void traceReturn(ThreadContext context, Ruby runtime, String name) {
         if (!runtime.hasEventHooks()) {
             return;
         }
 
-        runtime.callEventHooks(context, RubyEvent.RETURN, context.getFile(), context.getLine(), name, getImplementationClass());
+        runtime.callEventHooks(context, RubyEvent.RETURN, context.getFile(), context.getLine(),
+                name, getImplementationClass());
     }
-    
+
     private void traceCall(ThreadContext context, Ruby runtime, String name) {
         if (!runtime.hasEventHooks()) {
             return;
         }
-        
-        runtime.callEventHooks(context, RubyEvent.CALL, context.getFile(), context.getLine(), name, getImplementationClass());
+
+        runtime.callEventHooks(context, RubyEvent.CALL, context.getFile(), context.getLine(), name,
+                getImplementationClass());
     }
-    
+
     @Override
     public Arity getArity() {
         return this.arity;
     }
-    
+
     public DynamicMethod dup() {
-        return new YARVMethod(getImplementationClass(), iseq, staticScope, getVisibility());
-    }	
+        return new YARVMethod(getImplementationClass(), byteCode, staticScope, getVisibility());
+    }
 }// YARVMethod

@@ -25,21 +25,18 @@ package org.jruby.ast.executable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
-import org.jruby.RubyClass;
 import org.jruby.RubyFile;
 import org.jruby.RubyHash;
 import org.jruby.RubyNil;
 import org.jruby.RubyNumeric;
 import org.jruby.RubyString;
 import org.jruby.RubySymbol;
-import org.jruby.ast.executable.YARVMachine.InstructionSequence;
 import org.jruby.parser.StaticScope;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -50,12 +47,10 @@ import org.jruby.runtime.builtin.IRubyObject;
 public class YARVCompiledRunner {
     private Ruby runtime;
 
-    private YARVMachine.InstructionSequence iseq;
-    private RubyClass iseqClass;
+    private YARVByteCode byteCode;
 
     public YARVCompiledRunner(Ruby runtime, InputStream in, String filename) {
         this.runtime = runtime;
-        this.iseqClass = InstructionSequence.createInstructionSequence(runtime);
         byte[] first = new byte[4];
         try {
             in.read(first);
@@ -65,105 +60,99 @@ public class YARVCompiledRunner {
             RubyFile f = new RubyFile(runtime, filename, in);
             IRubyObject arr = runtime.getMarshal().callMethod(runtime.getCurrentContext(), "load",
                     f);
-            iseq = transformIntoSequence(arr);
+            byteCode = transformIntoByteCode(arr);
         } catch (IOException e) {
             throw new RuntimeException("Couldn't read from source", e);
         }
     }
 
-    public YARVCompiledRunner(Ruby runtime, YARVMachine.InstructionSequence iseq) {
+    public YARVCompiledRunner(Ruby runtime, YARVByteCode byteCode) {
         this.runtime = runtime;
-        this.iseq = iseq;
+        this.byteCode = byteCode;
     }
 
     public IRubyObject run() {
         ThreadContext context = runtime.getCurrentContext();
-        StaticScope scope = runtime.getStaticScopeFactory().newLocalScope(null, iseq.locals);
-        context.setFileAndLine(iseq.filename, -1);
-        return YARVMachine.getInstance().exec(context, scope, iseq);
+        StaticScope scope = runtime.getStaticScopeFactory().newLocalScope(null, byteCode.locals);
+        context.setFileAndLine(byteCode.filename, -1);
+        return YARVMachine.getInstance().exec(context, scope, byteCode);
     }
 
-    private YARVMachine.InstructionSequence transformIntoSequence(IRubyObject arr) {
+    private YARVByteCode transformIntoByteCode(IRubyObject arr) {
         if (!(arr instanceof RubyArray)) {
             throw new RuntimeException("Error when reading compiled YARV file");
         }
 
-        Map jumps = new IdentityHashMap();
+        Map jumps = new HashMap();
         Map labels = new HashMap();
 
-        YARVMachine.InstructionSequence seq = new YARVMachine.InstructionSequence(runtime,
-                iseqClass, null, null, null);
+        YARVByteCode byteCode = new YARVByteCode(runtime, runtime.getYarvByteCode());
         Iterator internal = (((RubyArray) arr).getList()).iterator();
-        seq.magic = internal.next().toString();
-        seq.major = RubyNumeric.fix2int((IRubyObject) internal.next());
-        seq.minor = RubyNumeric.fix2int((IRubyObject) internal.next());
-        seq.format_type = RubyNumeric.fix2int((IRubyObject) internal.next());
+        byteCode.magic = internal.next().toString();
+        byteCode.major = RubyNumeric.fix2int((IRubyObject) internal.next());
+        byteCode.minor = RubyNumeric.fix2int((IRubyObject) internal.next());
+        byteCode.format_type = RubyNumeric.fix2int((IRubyObject) internal.next());
         IRubyObject misc = (IRubyObject) internal.next();
         if (misc.isNil()) {
-            seq.misc = null;
+            byteCode.misc = null;
         } else {
-            seq.misc = misc;
+            byteCode.misc = misc;
             if (misc instanceof RubyHash) {
                 Object local_size = ((RubyHash) misc).get(RubySymbol.newSymbol(runtime,
                         "local_size"));
                 if (local_size != null) {
-                    seq.local_size = ((Long) local_size).intValue();
+                    byteCode.local_size = ((Long) local_size).intValue();
                 }
             }
         }
-        seq.name = internal.next().toString();
-        seq.filename = internal.next().toString();
-        seq.filefullpath = internal.next().toString();
-        seq.line = RubyNumeric.fix2int((IRubyObject) internal.next());
-        seq.type = internal.next().toString();
-        seq.locals = toStringArray((IRubyObject) internal.next());
-        if (seq.local_size > seq.locals.length) {
-            String[] oldLocals = seq.locals;
-            seq.locals = new String[seq.local_size];
-            System.arraycopy(oldLocals, 0, seq.locals, 0, oldLocals.length);
-            for (int i = oldLocals.length; i < seq.local_size; i++) {
-                seq.locals[i] = "localvar" + i + "_" + RubyNumeric.fix2int(seq.id());
+        byteCode.name = internal.next().toString();
+        byteCode.filename = internal.next().toString();
+        byteCode.filefullpath = internal.next().toString();
+        byteCode.line = RubyNumeric.fix2int((IRubyObject) internal.next());
+        byteCode.type = internal.next().toString();
+        byteCode.locals = toStringArray((IRubyObject) internal.next());
+        if (byteCode.local_size > byteCode.locals.length) {
+            String[] oldLocals = byteCode.locals;
+            byteCode.locals = new String[byteCode.local_size];
+            System.arraycopy(oldLocals, 0, byteCode.locals, 0, oldLocals.length);
+            for (int i = oldLocals.length; i < byteCode.local_size; i++) {
+                byteCode.locals[i] = "localvar" + i + "_" + RubyNumeric.fix2int(byteCode.id());
             }
         }
         IRubyObject argo = (IRubyObject) internal.next();
         if (argo instanceof RubyArray) {
             List arglist = ((RubyArray) argo).getList();
-            seq.args_argc = RubyNumeric.fix2int((IRubyObject) arglist.get(0));
-            seq.args_opt_labels = toStringArray((IRubyObject) arglist.get(1));
-            seq.args_post_len = RubyNumeric.fix2int((IRubyObject) arglist.get(2));
-            seq.args_post_start = RubyNumeric.fix2int((IRubyObject) arglist.get(3));
-            seq.args_rest = RubyNumeric.fix2int((IRubyObject) arglist.get(4));
-            seq.args_block = RubyNumeric.fix2int((IRubyObject) arglist.get(5));
-            seq.args_simple = RubyNumeric.fix2int((IRubyObject) arglist.get(6));
+            byteCode.args_argc = RubyNumeric.fix2int((IRubyObject) arglist.get(0));
+            byteCode.args_opt_labels = toStringArray((IRubyObject) arglist.get(1));
+            byteCode.args_post_len = RubyNumeric.fix2int((IRubyObject) arglist.get(2));
+            byteCode.args_post_start = RubyNumeric.fix2int((IRubyObject) arglist.get(3));
+            byteCode.args_rest = RubyNumeric.fix2int((IRubyObject) arglist.get(4));
+            byteCode.args_block = RubyNumeric.fix2int((IRubyObject) arglist.get(5));
+            byteCode.args_simple = RubyNumeric.fix2int((IRubyObject) arglist.get(6));
         } else {
-            seq.args_argc = RubyNumeric.fix2int(argo);
+            byteCode.args_argc = RubyNumeric.fix2int(argo);
         }
 
-        seq.exception = getExceptionInformation((IRubyObject) internal.next());
+        byteCode.exception = getExceptionInformation((IRubyObject) internal.next());
 
         List bodyl = ((RubyArray) internal.next()).getList();
-        YARVMachine.Instruction[] body = new YARVMachine.Instruction[bodyl.size()];
-        int real = 0;
-        int i = 0;
-        for (Iterator iter = bodyl.iterator(); iter.hasNext(); i++) {
+        for (Iterator iter = bodyl.iterator(); iter.hasNext();) {
             IRubyObject is = (IRubyObject) iter.next();
             if (is instanceof RubyArray) {
-                body[real] = intoInstruction((RubyArray) is, real, seq, jumps);
-                real++;
+                intoInstruction((RubyArray) is, byteCode, jumps);
             } else if (is instanceof RubySymbol) {
-                labels.put(is.toString(), new Integer(real + 1));
+                labels.put(is.toString(), byteCode.getNextInstructionPosition());
             }
         }
-        YARVMachine.Instruction[] nbody = new YARVMachine.Instruction[real];
-        System.arraycopy(body, 0, nbody, 0, real);
-        seq.body = nbody;
 
-        for (Iterator iter = jumps.keySet().iterator(); iter.hasNext();) {
-            YARVMachine.Instruction k = (YARVMachine.Instruction) iter.next();
-            k.l_op0 = ((Integer) labels.get(jumps.get(k))).intValue() - 1;
+        byteCode.closeBuffer();
+
+        for (Iterator iter = jumps.entrySet().iterator(); iter.hasNext();) {
+            Map.Entry<Integer, String> entry = (Map.Entry<Integer, String>) iter.next();
+            byteCode.setJumpTarget(entry.getKey(), (Integer) labels.get(entry.getValue()));
         }
 
-        return seq;
+        return byteCode;
     }
 
     private String[] toStringArray(IRubyObject obj) {
@@ -180,55 +169,51 @@ public class YARVCompiledRunner {
         }
     }
 
-    private YARVMachine.Instruction intoInstruction(RubyArray obj, int n,
-            YARVMachine.InstructionSequence iseq, Map jumps) {
+    private void intoInstruction(RubyArray obj, YARVByteCode byteCode, Map jumps) {
         List internal = obj.getList();
         String name = internal.get(0).toString();
-        int instruction = YARVMachine.instruction(name);
-        YARVMachine.Instruction i = new YARVMachine.Instruction(instruction);
-        if (internal.size() > 1) {
-            IRubyObject first = (IRubyObject) internal.get(1);
-            if (instruction == YARVInstructions.PUTOBJECT
-                    || instruction == YARVInstructions.OPT_REGEXPMATCH1
-                    || instruction == YARVInstructions.DUPARRAY) {
-                i.o_op0 = first;
-            } else if (first instanceof RubyString || first instanceof RubySymbol) {
-                i.s_op0 = first.toString();
-            } else if (first instanceof RubyNumeric) {
-                i.l_op0 = RubyNumeric.fix2long(first);
-            }
-
-            if (instruction == YARVInstructions.GETLOCAL
-                    || instruction == YARVInstructions.SETLOCAL) {
-                i.i_op1 = -1;
-            }
-
-            if (instruction == YARVInstructions.GETINLINECACHE
-                    || instruction == YARVInstructions.ONCEINLINECACHE
-                    || instruction == YARVInstructions.GETDYNAMIC
-                    || instruction == YARVInstructions.SETDYNAMIC
-                    || instruction == YARVInstructions.TOREGEXP
-                    || instruction == YARVInstructions.EXPANDARRAY) {
-                i.l_op1 = RubyNumeric.fix2long((IRubyObject) internal.get(2));
-            } else if (instruction == YARVInstructions.SEND) {
-                i.i_op1 = RubyNumeric.fix2int((IRubyObject) internal.get(2));
-                i.i_op3 = RubyNumeric.fix2int((IRubyObject) internal.get(4));
-                if (!((IRubyObject) internal.get(3) instanceof RubyNil)) {
-                    i.iseq_op = transformIntoSequence((IRubyObject) internal.get(3));
+        byte instruction = YARVInstructions.instruction(name);
+        if (instruction != YARVInstructions.TRACE && instruction != YARVInstructions.NOP) {
+            int instructionPos = byteCode.pushInstruction(instruction);
+            if (internal.size() > 1) {
+                IRubyObject first = (IRubyObject) internal.get(1);
+                if (instruction == YARVInstructions.PUTOBJECT
+                        || instruction == YARVInstructions.OPT_REGEXPMATCH1
+                        || instruction == YARVInstructions.DUPARRAY) {
+                    byteCode.push(first);
+                } else if (isJump(instruction)) {
+                    jumps.put(instructionPos, first.toString());
+                    byteCode.push(-1); // jump location: will be updated later
+                } else if (first instanceof RubyString || first instanceof RubySymbol) {
+                    byteCode.push(first.toString());
+                } else if (first instanceof RubyNumeric) {
+                    byteCode.push(RubyNumeric.fix2int(first));
                 }
-            } else if (instruction == YARVInstructions.PUTISEQ) {
-                i.iseq_op = transformIntoSequence((IRubyObject) internal.get(1));
-            } else if (instruction == YARVInstructions.DEFINECLASS) {
-                i.iseq_op = transformIntoSequence((IRubyObject) internal.get(2));
-                i.i_op2 = RubyNumeric.fix2int((IRubyObject) internal.get(3));
-            }
 
-            if (isJump(instruction)) {
-                i.index = n;
-                jumps.put(i, internal.get(1).toString());
+                if (instruction == YARVInstructions.GETINLINECACHE
+                        || instruction == YARVInstructions.ONCEINLINECACHE
+                        || instruction == YARVInstructions.GETDYNAMIC
+                        || instruction == YARVInstructions.SETDYNAMIC
+                        || instruction == YARVInstructions.TOREGEXP
+                        || instruction == YARVInstructions.EXPANDARRAY) {
+                    byteCode.push(RubyNumeric.fix2int((IRubyObject) internal.get(2)));
+                } else if (instruction == YARVInstructions.SEND) {
+                    byteCode.push(RubyNumeric.fix2int((IRubyObject) internal.get(2)));
+                    if (!((IRubyObject) internal.get(3) instanceof RubyNil)) {
+                        byteCode.push(transformIntoByteCode((IRubyObject) internal.get(3)));
+                    } else {
+                        byteCode.push(null);
+                    }
+                    byteCode.push(RubyNumeric.fix2int((IRubyObject) internal.get(4)));
+                    byteCode.push(RubyNumeric.fix2int((IRubyObject) internal.get(5)));
+                } else if (instruction == YARVInstructions.PUTISEQ) {
+                    byteCode.push(transformIntoByteCode(first));
+                } else if (instruction == YARVInstructions.DEFINECLASS) {
+                    byteCode.push(transformIntoByteCode((IRubyObject) internal.get(2)));
+                    byteCode.push(RubyNumeric.fix2int((IRubyObject) internal.get(3)));
+                }
             }
         }
-        return i;
     }
 
     private boolean isJump(int i) {
