@@ -32,12 +32,16 @@ import org.jruby.util.RegexpOptions;
 
 public class YARVMachine {
 
-    private static final boolean TAILCALL_OPT = Boolean.getBoolean("jruby.tailcall.enabled");
+    protected static final boolean TAILCALL_OPT = Boolean.getBoolean("jruby.tailcall.enabled");
 
-    public static ThreadLocal<YARVMachine> INSTANCE = new ThreadLocal<YARVMachine>() {
+    // is set from Ruby instance initialization
+    public static boolean threadedCode;
+    
+    public static final ThreadLocal<YARVMachine> INSTANCE = new ThreadLocal<YARVMachine>() {
         @Override
         protected YARVMachine initialValue() {
-            return new YARVMachine();
+            //System.err.println("new yarvmachine");
+            return threadedCode ? new YARVThreadedCodeInterpreter() : new YARVMachine();
         }
     };
 
@@ -45,7 +49,7 @@ public class YARVMachine {
         return INSTANCE.get();
     }
 
-    IRubyObject[] stack = new IRubyObject[8192];
+    protected IRubyObject[] stack = new IRubyObject[8192];
     public int stackTop = 0;
 
     /*
@@ -61,7 +65,7 @@ public class YARVMachine {
      * @param value
      *            to be pushed
      */
-    private void push(IRubyObject value) {
+    protected void push(IRubyObject value) {
         // System.out.println("push(" + value.inspect() + ")");
         stack[stackTop] = value;
         stackTop++;
@@ -70,7 +74,7 @@ public class YARVMachine {
     /**
      * Swap top two values in the stack
      */
-    private void swap() {
+    protected void swap() {
         stack[stackTop] = stack[stackTop - 1];
         stack[stackTop - 1] = stack[stackTop - 2];
         stack[stackTop - 2] = stack[stackTop];
@@ -81,7 +85,7 @@ public class YARVMachine {
      * 
      * @param length
      */
-    private void dupn(int length) {
+    protected void dupn(int length) {
         System.arraycopy(stack, stackTop - length, stack, stackTop, length);
         stackTop += length;
     }
@@ -91,7 +95,7 @@ public class YARVMachine {
      * 
      * @return the top value
      */
-    private IRubyObject peek() {
+    protected IRubyObject peek() {
         return stack[stackTop - 1];
     }
 
@@ -100,7 +104,7 @@ public class YARVMachine {
      * 
      * @return the top value
      */
-    private IRubyObject pop() {
+    protected IRubyObject pop() {
         // System.out.println("pop(" + stack[stackTop-1].inspect() + ")");
         return stack[--stackTop];
     }
@@ -112,7 +116,7 @@ public class YARVMachine {
      *            to be populated from the stack
      * @return the array passed in
      */
-    private IRubyObject[] popArray(IRubyObject arr[]) {
+    protected IRubyObject[] popArray(IRubyObject arr[]) {
         stackTop -= arr.length;
         switch (arr.length) {
         case 3:
@@ -141,7 +145,7 @@ public class YARVMachine {
      * @param arr
      *            contains elements to be pushed to the stack
      */
-    private void pushArray(RubyArray arr) {
+    protected void pushArray(RubyArray arr) {
         System.arraycopy(arr.toJavaArrayUnsafe(), 0, stack, stackTop, arr.getLength());
         stackTop += arr.getLength();
     }
@@ -154,7 +158,7 @@ public class YARVMachine {
      * @param value
      *            to be set
      */
-    private void setn(int depth, IRubyObject value) {
+    protected void setn(int depth, IRubyObject value) {
         stack[stackTop - depth - 1] = value;
     }
 
@@ -164,7 +168,7 @@ public class YARVMachine {
      * @param depth
      *            which element to push
      */
-    private void topn(int depth) {
+    protected void topn(int depth) {
         push(stack[stackTop - depth - 1]);
     }
 
@@ -174,11 +178,11 @@ public class YARVMachine {
      * @param value
      *            to replace current stack value
      */
-    public void set(IRubyObject value) {
+    protected void set(IRubyObject value) {
         stack[stackTop - 1] = value;
     }
 
-    public void unimplemented(int bytecode) {
+    protected void unimplemented(int bytecode) {
         System.err.println("Not implemented, YARVMachine." + YARVInstructions.name(bytecode));
     }
 
@@ -779,15 +783,13 @@ public class YARVMachine {
                 break;
             }
             case YARVInstructions.ANSWER: {
-                int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
                 push(runtime.newFixnum(42));
                 ip += 1;
                 break;
             }
             case YARVInstructions.TRACE:
                 // System.err.println("Trace: " + bytecodes[ip].l_op0);
-                ip += 1;
+                ip += 5;
                 break;
             case YARVInstructions.THROW: {
                 int op = YARVByteCode.getInt(body, ip + 1);
@@ -820,7 +822,7 @@ public class YARVMachine {
         runtime.callEventHooks(context, event, context.getFile(), context.getLine(), name, type);
     }
 
-    private void op_plus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
+    protected void op_plus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -837,7 +839,7 @@ public class YARVMachine {
         }
     }
 
-    private void op_minus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
+    protected void op_minus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -854,7 +856,7 @@ public class YARVMachine {
         }
     }
 
-    private void op_lt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
+    protected void op_lt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -867,7 +869,7 @@ public class YARVMachine {
         }
     }
 
-    private void op_gt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
+    protected void op_gt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             IRubyObject other, IRubyObject receiver) {
         if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
             long receiverValue = ((RubyFixnum) receiver).getLongValue();
@@ -880,7 +882,7 @@ public class YARVMachine {
         }
     }
 
-    private int send(Ruby runtime, ThreadContext context, IRubyObject self, String name, int size,
+    protected int send(Ruby runtime, ThreadContext context, IRubyObject self, String name, int size,
             YARVByteCode blockByteCode, int flags, InlineCache ic, byte[] body, int stackStart,
             int nextInstructionPos) {
         Block block = null;
@@ -1050,13 +1052,13 @@ public class YARVMachine {
         return nextInstructionPos;
     }
 
-    private boolean isTailCall(ThreadContext context, byte[] body, int nextInstructionPos,
+    protected boolean isTailCall(ThreadContext context, byte[] body, int nextInstructionPos,
             IRubyObject recv, IRubyObject self, int flags, String name) {
         return (body[nextInstructionPos] == YARVInstructions.LEAVE || (flags & YARVInstructions.TAILCALL_FLAG) == YARVInstructions.TAILCALL_FLAG)
                 && recv == self && name.equals(context.getFrameName());
     }
 
-    private void sendVirtual(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
+    protected void sendVirtual(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
             String name, int size) {
         if (size == 3) {
             sendVirtual3Args(runtime, context, ic, self, name);
@@ -1071,7 +1073,7 @@ public class YARVMachine {
         }
     }
 
-    private void sendVirtual0Args(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual0Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);
@@ -1080,7 +1082,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, pop()));
     }
 
-    private void sendVirtual1Arg(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual1Arg(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);
@@ -1090,7 +1092,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, pop(), arg1));
     }
 
-    private void sendVirtual1Arg(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual1Arg(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, IRubyObject recv, IRubyObject arg1) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);
@@ -1099,7 +1101,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, recv, arg1));
     }
 
-    private void sendVirtual2Args(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual2Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);
@@ -1110,7 +1112,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, pop(), arg1, arg2));
     }
 
-    private void sendVirtual2Args(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual2Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, IRubyObject recv, IRubyObject arg1, IRubyObject arg2) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);
@@ -1119,7 +1121,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, recv, arg1, arg2));
     }
 
-    private void sendVirtual3Args(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual3Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);
@@ -1131,7 +1133,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, pop(), arg1, arg2, arg3));
     }
 
-    private void sendVirtual3Args(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtual3Args(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, IRubyObject recv, IRubyObject arg1, IRubyObject arg2,
             IRubyObject arg3) {
         if (ic.cachedObject == null) {
@@ -1141,7 +1143,7 @@ public class YARVMachine {
         push(((CallSite) ic.cachedObject).call(context, self, recv, arg1, arg2, arg3));
     }
 
-    private void sendVirtualManyArgs(Ruby runtime, ThreadContext context, InlineCache ic,
+    protected void sendVirtualManyArgs(Ruby runtime, ThreadContext context, InlineCache ic,
             IRubyObject self, String name, int size) {
         if (ic.cachedObject == null) {
             ic.cachedObject = MethodIndex.getCallSite(name);

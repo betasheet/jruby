@@ -906,6 +906,14 @@ public class RubyInstanceConfig {
         yarv = enabled;
     }
 
+    public boolean isYARVSIEnabled() {
+        return yarvSI;
+    }
+
+    public void setYARVSIEnabled(boolean enabled) {
+        yarvSI = enabled;
+    }
+
     public String getInputFieldSeparator() {
         return inputFieldSeparator;
     }
@@ -1288,6 +1296,7 @@ public class RubyInstanceConfig {
     private boolean shouldPrintProperties=false;
 
     private boolean yarv = false;
+    private boolean yarvSI = false;
     private boolean rubinius = false;
     
     private boolean dumpConfig=false;

@@ -38,5 +38,9 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="build_lib/bcprov-jdk15on-147.jar"/>
 	<classpathentry kind="lib" path="build_lib/bcpkix-jdk15on-147.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.oracle.max.asm"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.oracle.max.vm"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.oracle.max.vm.ext.c1x"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.oracle.max.vm.ext.t1x"/>
 	<classpathentry kind="output" path="build.eclipse"/>
 </classpath>

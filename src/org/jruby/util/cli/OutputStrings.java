@@ -88,7 +88,7 @@ public class OutputStrings {
                 .append("  -X-C        disable all compilation\n")
                 .append("  -X+C        force compilation of all scripts before they are run (except eval)\n")
                 .append("  -X-y        read a YARV-compiled Ruby script and run that (EXPERIMENTAL)\n")
-                .append("  -X-Y        compile a Ruby script into YARV bytecodes and run this (EXPERIMENTAL)\n")
+                .append("  -X-ysi      read a YARV-compiled Ruby script and run with subroutine interpreter (EXPERIMENTAL)\n")
                 .append("  -X-R        read a Rubinius-compiled Ruby script and run that (EXPERIMENTAL)\n");
 
         return sb.toString();

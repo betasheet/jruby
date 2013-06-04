@@ -51,6 +51,8 @@ public abstract class YARVInstructions {<% INSTRUCTIONS.each_with_index do |ins,
     public static String name(int index) {
         return INDEX_TO_NAME[index];
     }
+    
+    public static final byte LAST_OPCODE = <%= INSTRUCTIONS.length - 1 %>;
 
     public static final int ARGS_SPLAT_FLAG = 2;
     public static final int ARGS_BLOCKARG_FLAG = 4;

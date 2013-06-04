@@ -288,6 +288,8 @@ public abstract class YARVInstructions {
     public static String name(int index) {
         return INDEX_TO_NAME[index];
     }
+    
+    public static final byte LAST_OPCODE = 79;
 
     public static final int ARGS_SPLAT_FLAG = 2;
     public static final int ARGS_BLOCKARG_FLAG = 4;

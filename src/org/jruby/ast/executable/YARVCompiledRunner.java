@@ -52,6 +52,7 @@ public class YARVCompiledRunner {
     public YARVCompiledRunner(Ruby runtime, InputStream in, String filename) {
         this.runtime = runtime;
         byte[] first = new byte[4];
+        YARVIOpsCodeTable.instance();
         try {
             in.read(first);
             if (first[0] != 'R' || first[1] != 'B' || first[2] != 'C' || first[3] != 'M') {
@@ -150,6 +151,11 @@ public class YARVCompiledRunner {
         for (Iterator iter = jumps.entrySet().iterator(); iter.hasNext();) {
             Map.Entry<Integer, String> entry = (Map.Entry<Integer, String>) iter.next();
             byteCode.setJumpTarget(entry.getKey(), (Integer) labels.get(entry.getValue()));
+        }
+
+        if (YARVMachine.threadedCode) {
+            YARVThreadedCodeGenerator tcg = new YARVThreadedCodeGenerator(byteCode);
+            byteCode.targetMethod = tcg.generateThreadedCode();
         }
 
         return byteCode;

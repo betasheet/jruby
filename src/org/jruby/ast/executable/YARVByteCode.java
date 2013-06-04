@@ -32,6 +32,8 @@ import org.jruby.runtime.ObjectAllocator;
 import org.jruby.runtime.YARVBlockBody;
 import org.jruby.runtime.builtin.IRubyObject;
 
+import com.sun.max.vm.compiler.target.TargetMethod;
+
 /**
  * @author betasheet
  */
@@ -83,12 +85,17 @@ public class YARVByteCode extends RubyObject {
     public byte[] body;
     public int instructionCount;
 
+    public TargetMethod targetMethod;
     public YARVBlockBody blockBody;
 
     private InlineCache[] inlineCaches = new InlineCache[1024];
 
     public YARVByteCode(Ruby runtime, RubyClass metaClass) {
         super(runtime, metaClass);
+    }
+
+    YARVByteCode() {
+        super(Ruby.getGlobalRuntime(), null);
     }
 
     public int getOptArgsLength() {

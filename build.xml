@@ -9,8 +9,20 @@
     <!-- Then set defaults for any values not set by build.properties -->
     <property file="default.build.properties"/>
 
+    <condition
+      property="maxine.jar"
+      value="${basedir}/../com.oracle.max.vm.native/generated/darwin/maxine.jar"
+      else="${basedir}/../com.oracle.max.vm.native/generated/linux/maxine.jar">
+      <!-- TODO: fix path in else-attribute -->
+      <os family="mac"/>
+    </condition>
+	
+    <property name="maxine_vm_classes" value="${basedir}/../com.oracle.max.vm/bin" />
+
     <path id="build.classpath">
         <fileset dir="${build.lib.dir}" includes="*.jar"/>
+        <pathelement path="${maxine.jar}" />
+        <pathelement path="${maxine_vm_classes}" />
     </path>
 
     <path id="jruby.execute.classpath">
