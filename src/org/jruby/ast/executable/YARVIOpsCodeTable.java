@@ -23,14 +23,13 @@ package org.jruby.ast.executable;
 
 import java.lang.reflect.Method;
 
-import org.jruby.Ruby;
-
 import com.oracle.max.criutils.HexCodeFile;
 import com.sun.max.platform.Platform;
 import com.sun.max.program.ProgramError;
 import com.sun.max.unsafe.CodePointer;
 import com.sun.max.vm.MaxineVM;
 import com.sun.max.vm.actor.member.ClassMethodActor;
+import com.sun.max.vm.compiler.CallEntryPoint;
 import com.sun.max.vm.compiler.CompilationBroker;
 import com.sun.max.vm.compiler.RuntimeCompiler;
 import com.sun.max.vm.compiler.target.HexCodeFileTool;

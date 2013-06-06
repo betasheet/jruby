@@ -474,66 +474,24 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
         public void sendTemplate(int op0, int size, int op2, int flags, int icId) {
             String name = (String) YARVByteCode.getConstant(op0);
 
-            System.err.println("Calling " + name + " callDepth: " + callDepth);
+            //System.err.println("Calling " + name + " callDepth: " + callDepth);
             // System.err.println("Calling " + name + " peek: " + peek() +
 // " stack: " + Arrays.toString(Arrays.copyOfRange(stack, 0, stackTop)));
             YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
-            // TODO send implementation for threaded code
             InlineCache ic = byteCode.getInlineCache(icId);
 
             Block block = null;
 
-            System.err.println("Blocking");
-
             if (blockByteCode != null) {
-                YARVBlockBody blockBody = blockByteCode.blockBody;
-                if (blockBody == null) {
-                    // TODO argumentType array (for lambdas?)
-                    boolean opts = blockByteCode.getOptArgsLength() > 0
-                            || blockByteCode.args_rest > 0;
-                    boolean req = blockByteCode.args_argc > 0;
-                    Arity arity;
-                    int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
-                    if (!req && !opts) {
-                        arity = Arity.noArguments();
-                        argumentType = BlockBody.ZERO_ARGS;
-                    } else if (req && !opts) {
-                        arity = Arity.fixed(blockByteCode.args_argc);
-                    } else if (opts && !req) {
-                        arity = Arity.optional();
-                        if (blockByteCode.args_rest > 0 && blockByteCode.getOptArgsLength() <= 0) {
-                            argumentType = BlockBody.SINGLE_RESTARG;
-                        }
-                    } else {
-                        arity = Arity.required(blockByteCode.args_argc);
-                    }
+                YARVBlockBody blockBody = getBlockBody(blockByteCode);
 
-                    StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
-                            context.getCurrentStaticScope());
-                    scope.setVariables(blockByteCode.locals);
-                    // TODO when evaluating method call, iteration has to
-                    // proceed and set argument variables accordingly.
-                    blockBody = new YARVBlockBody(scope, arity, argumentType,
-                            blockByteCode);
-                }
-
-                System.err.println("Blocking 0.5");
-                blockByteCode.blockBody = blockBody;
-                System.err.println("Blocking 0.55");
-                StaticScope staticScope = blockBody.getStaticScope();
-                System.err.println("Blocking 0.6");
-                staticScope.determineModule();
-                System.err.println("Blocking 0.7");
+                blockBody.getStaticScope().determineModule();
                 Binding binding = context.currentBinding(self, Visibility.PUBLIC);
-                System.err.println("Blocking 0.8");
 
-                block = new Block(blockByteCode.blockBody, binding);
-                System.err.println("Blocking 0.9");
+                block = new Block(blockBody, binding);
             } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
                 System.err.println("block arg support not implemented");
             }
-
-            System.err.println("Caching");
 
             if (ic.cachedObject == null) {
                 if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
@@ -547,15 +505,9 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
                 }
             }
             CallSite callAdapter = (CallSite) ic.cachedObject;
-            if (callAdapter == null)
-                throw new RuntimeException("call adapter is null");
-
-            System.err.println("Splatting");
 
             if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
                 RubyArray splatArray = (RubyArray) pop();
-                if (splatArray == null)
-                    throw new RuntimeException("Splat array null");
                 size += splatArray.getLength() - 1;
                 pushArray(splatArray);
             }
@@ -579,7 +531,6 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
              * push(callAdapter.call(context, self, recv, block)); } break; }
              */
             default: {
-                System.err.println("Popping args");
                 IRubyObject[] args;
                 args = new IRubyObject[size];
                 popArray(args);
@@ -597,6 +548,41 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
                 break;
             }
             }
+        }
+
+        private YARVBlockBody getBlockBody(YARVByteCode blockByteCode) {
+            YARVBlockBody blockBody = blockByteCode.blockBody;
+
+            if (blockBody == null) {
+                // TODO argumentType array (for lambdas?)
+                boolean opts = blockByteCode.getOptArgsLength() > 0 || blockByteCode.args_rest > 0;
+                boolean req = blockByteCode.args_argc > 0;
+                Arity arity;
+                int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
+                if (!req && !opts) {
+                    arity = Arity.noArguments();
+                    argumentType = BlockBody.ZERO_ARGS;
+                } else if (req && !opts) {
+                    arity = Arity.fixed(blockByteCode.args_argc);
+                } else if (opts && !req) {
+                    arity = Arity.optional();
+                    if (blockByteCode.args_rest > 0 && blockByteCode.getOptArgsLength() <= 0) {
+                        argumentType = BlockBody.SINGLE_RESTARG;
+                    }
+                } else {
+                    arity = Arity.required(blockByteCode.args_argc);
+                }
+
+                StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
+                        context.getCurrentStaticScope());
+                scope.setVariables(blockByteCode.locals);
+                // TODO when evaluating method call, iteration has to
+                // proceed and set argument variables accordingly.
+                blockBody = new YARVBlockBody(scope, arity, argumentType, blockByteCode);
+                blockByteCode.blockBody = blockBody;
+            }
+            
+            return blockBody;
         }
 
         @YARVBYTECODEIMPLEMENTATION(YARVInstructions.LEAVE)

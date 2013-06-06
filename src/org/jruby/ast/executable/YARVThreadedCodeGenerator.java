@@ -262,9 +262,12 @@ public class YARVThreadedCodeGenerator {
 
     private void genEpilogue() {
         // deallocate frame
-        asm.movq(locations[1], AMD64.rsp);
-        TargetMethod callee = iOpsCodeTable.getImplementation(YARVInstructions.TRACE);
-        emitSubroutineCall(callee);
+        
+        // trace frame pointer
+        //asm.movq(locations[1], AMD64.rsp);
+        //TargetMethod callee = iOpsCodeTable.getImplementation(YARVInstructions.TRACE);
+        //emitSubroutineCall(callee);
+        
         asm.addq(AMD64.rsp, FRAME_SIZE);
         asm.ret(0);
     }

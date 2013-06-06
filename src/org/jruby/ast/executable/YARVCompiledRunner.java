@@ -52,7 +52,6 @@ public class YARVCompiledRunner {
     public YARVCompiledRunner(Ruby runtime, InputStream in, String filename) {
         this.runtime = runtime;
         byte[] first = new byte[4];
-        YARVIOpsCodeTable.instance();
         try {
             in.read(first);
             if (first[0] != 'R' || first[1] != 'B' || first[2] != 'C' || first[3] != 'M') {

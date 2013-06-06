@@ -888,41 +888,12 @@ public class YARVMachine {
         Block block = null;
 
         if (blockByteCode != null) {
-            // System.err.println("block support not implemented");
+            YARVBlockBody blockBody = getBlockBody(blockByteCode, runtime, context);
 
-            if (blockByteCode.blockBody == null) {
-                // TODO argumentType array (for lambdas?)
-                boolean opts = blockByteCode.getOptArgsLength() > 0 || blockByteCode.args_rest > 0;
-                boolean req = blockByteCode.args_argc > 0;
-                Arity arity;
-                int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
-                if (!req && !opts) {
-                    arity = Arity.noArguments();
-                    argumentType = BlockBody.ZERO_ARGS;
-                } else if (req && !opts) {
-                    arity = Arity.fixed(blockByteCode.args_argc);
-                } else if (opts && !req) {
-                    arity = Arity.optional();
-                    if (blockByteCode.args_rest > 0 && blockByteCode.getOptArgsLength() <= 0) {
-                        argumentType = BlockBody.SINGLE_RESTARG;
-                    }
-                } else {
-                    arity = Arity.required(blockByteCode.args_argc);
-                }
-
-                StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
-                        context.getCurrentStaticScope());
-                scope.setVariables(blockByteCode.locals);
-                // TODO when evaluating method call, iteration has to proceed
-// and set argument variables accordingly.
-                blockByteCode.blockBody = new YARVBlockBody(scope, arity, argumentType,
-                        blockByteCode);
-            }
-
-            blockByteCode.blockBody.getStaticScope().determineModule();
+            blockBody.getStaticScope().determineModule();
             Binding binding = context.currentBinding(self, Visibility.PUBLIC);
 
-            block = new Block(blockByteCode.blockBody, binding);
+            block = new Block(blockBody, binding);
         } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
             System.err.println("block arg support not implemented");
         }
@@ -1050,6 +1021,41 @@ public class YARVMachine {
         }
 
         return nextInstructionPos;
+    }
+
+    private YARVBlockBody getBlockBody(YARVByteCode blockByteCode, Ruby runtime, ThreadContext context) {
+        YARVBlockBody blockBody = blockByteCode.blockBody;
+
+        if (blockBody == null) {
+            // TODO argumentType array (for lambdas?)
+            boolean opts = blockByteCode.getOptArgsLength() > 0 || blockByteCode.args_rest > 0;
+            boolean req = blockByteCode.args_argc > 0;
+            Arity arity;
+            int argumentType = BlockBody.MULTIPLE_ASSIGNMENT;
+            if (!req && !opts) {
+                arity = Arity.noArguments();
+                argumentType = BlockBody.ZERO_ARGS;
+            } else if (req && !opts) {
+                arity = Arity.fixed(blockByteCode.args_argc);
+            } else if (opts && !req) {
+                arity = Arity.optional();
+                if (blockByteCode.args_rest > 0 && blockByteCode.getOptArgsLength() <= 0) {
+                    argumentType = BlockBody.SINGLE_RESTARG;
+                }
+            } else {
+                arity = Arity.required(blockByteCode.args_argc);
+            }
+
+            StaticScope scope = runtime.getStaticScopeFactory().newBlockScope(
+                    context.getCurrentStaticScope());
+            scope.setVariables(blockByteCode.locals);
+            // TODO when evaluating method call, iteration has to
+            // proceed and set argument variables accordingly.
+            blockBody = new YARVBlockBody(scope, arity, argumentType, blockByteCode);
+            blockByteCode.blockBody = blockBody;
+        }
+        
+        return blockBody;
     }
 
     protected boolean isTailCall(ThreadContext context, byte[] body, int nextInstructionPos,

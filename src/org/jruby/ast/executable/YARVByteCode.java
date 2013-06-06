@@ -43,12 +43,12 @@ public class YARVByteCode extends RubyObject {
         public long state;
         public Object cachedObject;
 
-        public synchronized void update(long state, IRubyObject cachedObject) {
-            this.state = state;
+        public void update(long state, IRubyObject cachedObject) {
             this.cachedObject = cachedObject;
+            this.state = state;
         }
         
-        public synchronized Object get(long state) {
+        public Object get(long state) {
             return (this.state == state) ? cachedObject : null;
         }
     }
@@ -102,10 +102,12 @@ public class YARVByteCode extends RubyObject {
         return args_opt_labels == null ? 0 : args_opt_labels.length;
     }
 
-    public synchronized InlineCache getInlineCache(int id) {
-        if (inlineCaches[id] == null)
-            inlineCaches[id] = new InlineCache();
-        return inlineCaches[id];
+    public InlineCache getInlineCache(int id) {
+        InlineCache ic = inlineCaches[id];
+        if (ic == null)
+            ic = new InlineCache();
+        inlineCaches[id] = ic;
+        return ic;
     }
 
     public static RubyClass createYARVByteCode(Ruby runtime) {

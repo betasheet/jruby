@@ -92,6 +92,7 @@ import org.jruby.ast.executable.RuntimeCache;
 import org.jruby.ast.executable.Script;
 import org.jruby.ast.executable.YARVByteCode;
 import org.jruby.ast.executable.YARVCompiledRunner;
+import org.jruby.ast.executable.YARVIOpsCodeTable;
 import org.jruby.ast.executable.YARVMachine;
 import org.jruby.ast.executable.YARVVMCore;
 import org.jruby.common.IRubyWarnings.ID;
@@ -1452,7 +1453,10 @@ public final class Ruby {
         if(config.isYARVEnabled()) {
             yarvVMCore = YARVVMCore.createYARVVMCore(this);
             yarvByteCode = YARVByteCode.createYARVByteCode(this);
-            YARVMachine.threadedCode = config.isYARVSIEnabled();
+            if (config.isYARVSIEnabled()) {
+                YARVMachine.threadedCode = true;
+                YARVIOpsCodeTable.instance(); // init iops table
+            }
         }
         
         if (is1_9()) {
