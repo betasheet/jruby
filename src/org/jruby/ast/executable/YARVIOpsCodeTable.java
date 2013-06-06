@@ -23,6 +23,10 @@ package org.jruby.ast.executable;
 
 import java.lang.reflect.Method;
 
+import org.jruby.Ruby;
+import org.jruby.runtime.Arity;
+import org.jruby.runtime.MethodIndex;
+
 import com.oracle.max.criutils.HexCodeFile;
 import com.sun.max.platform.Platform;
 import com.sun.max.program.ProgramError;
@@ -52,7 +56,9 @@ public class YARVIOpsCodeTable {
          * more methods when compiling templates
          */
         try {
-            new YARVByteCode();
+            Arity.optional();
+            new MethodIndex();
+            new YARVByteCode().new InlineCache();
             new YARVMachine();
             new YARVThreadedCodeInterpreter().new ActivationRecord();
         } catch (Exception e) {
@@ -67,7 +73,7 @@ public class YARVIOpsCodeTable {
         return IOpsCodeTable;
     }
 
-    public void compilePyBytecodeImplementations(Class activationRecordClass) {
+    public void compilePyBytecodeImplementations(Class activationRecordClass, Ruby runtime) {
         CompilationBroker cb = MaxineVM.vm().compilationBroker;
         RuntimeCompiler optimizingCompiler = cb.optimizingCompiler;
         bytecodeImplementations = new TargetMethod[YARVInstructions.LAST_OPCODE + 1];
@@ -84,7 +90,10 @@ public class YARVIOpsCodeTable {
                             true, null);
                     targetMethod.setAsSubroutine();
                     totalPyBytecodeImplemantationCodeSize += targetMethod.codeLength();
-                    // printAssembly(targetMethod,targetMethod.getEntryPoint(CallEntryPoint.OPTIMIZED_ENTRY_POINT));
+                    
+                    if (runtime.getInstanceConfig().isYARVSIPrintIopsCodeEnabled()) {
+                        printAssembly(targetMethod,targetMethod.getEntryPoint(CallEntryPoint.OPTIMIZED_ENTRY_POINT));
+                    }
 
                     int[] opcodes = anno.value();
                     for (int opcode : opcodes) {

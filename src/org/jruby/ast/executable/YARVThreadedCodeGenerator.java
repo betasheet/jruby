@@ -87,6 +87,11 @@ public class YARVThreadedCodeGenerator {
         subroutineThreadedCode.setCode(code);
         subroutineThreadedCode.linkDirectSubroutineCalls();
         totalThreadedCodeSize += subroutineThreadedCode.codeLength();
+        
+        if (byteCode.getRuntime().getInstanceConfig().isYARVSIPrintThreadedCodeEnabled()) {
+            printThreadedCode();
+        }
+        
         return subroutineThreadedCode;
     }
 

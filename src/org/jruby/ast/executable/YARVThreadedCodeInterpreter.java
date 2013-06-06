@@ -59,12 +59,6 @@ import com.sun.max.vm.Intrinsics;
  * @author betasheet
  */
 public class YARVThreadedCodeInterpreter extends YARVMachine {
-    private static int callDepth = 0;
-
-    static {
-        YARVIOpsCodeTable.instance().compilePyBytecodeImplementations(
-                YARVThreadedCodeInterpreter.ActivationRecord.class);
-    }
 
     @Override
     public IRubyObject exec(ThreadContext context, StaticScope scope, YARVByteCode byteCode) {
@@ -107,15 +101,9 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
         }
 
         public IRubyObject execute() {
-            callDepth++;
-            try {
-                Intrinsics.indirectCallWithReceiver(
-                        byteCode.targetMethod.getEntryPoint(OPTIMIZED_ENTRY_POINT).toAddress(),
-                        this);
-                return pop();
-            } finally {
-                callDepth--;
-            }
+            Intrinsics.indirectCallWithReceiver(
+                    byteCode.targetMethod.getEntryPoint(OPTIMIZED_ENTRY_POINT).toAddress(), this);
+            return pop();
         }
 
         @YARVBYTECODEIMPLEMENTATION(YARVInstructions.NOP)
@@ -474,7 +462,8 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
         public void sendTemplate(int op0, int size, int op2, int flags, int icId) {
             String name = (String) YARVByteCode.getConstant(op0);
 
-            //System.err.println("Calling " + name + " callDepth: " + callDepth);
+            // System.err.println("Calling " + name + " callDepth: " +
+// callDepth);
             // System.err.println("Calling " + name + " peek: " + peek() +
 // " stack: " + Arrays.toString(Arrays.copyOfRange(stack, 0, stackTop)));
             YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
@@ -512,42 +501,66 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
                 pushArray(splatArray);
             }
 
-            switch (size) {
-            /*
-             * case 3: { IRubyObject arg3 = pop(); IRubyObject arg2 = pop();
-             * IRubyObject arg1 = pop(); IRubyObject recv = pop(); if (block ==
-             * null) { push(callAdapter.call(context, self, recv, arg1, arg2,
-             * arg3)); } else { push(callAdapter.call(context, self, recv, arg1,
-             * arg2, arg3, block)); } } case 2: { IRubyObject arg2 = pop();
-             * IRubyObject arg1 = pop(); IRubyObject recv = pop(); if (block ==
-             * null) { push(callAdapter.call(context, self, recv, arg1, arg2));
-             * } else { push(callAdapter.call(context, self, recv, arg1, arg2,
-             * block)); } break; } case 1: { IRubyObject arg1 = pop();
-             * IRubyObject recv = pop(); if (block == null) {
-             * push(callAdapter.call(context, self, recv, arg1)); } else {
-             * push(callAdapter.call(context, self, recv, arg1, block)); }
-             * break; } case 0: { IRubyObject recv = pop(); if (block == null) {
-             * push(callAdapter.call(context, self, recv)); } else {
-             * push(callAdapter.call(context, self, recv, block)); } break; }
-             */
-            default: {
-                IRubyObject[] args;
-                args = new IRubyObject[size];
-                popArray(args);
+// switch (size) {
+// case 3: {
+// IRubyObject arg3 = pop();
+// IRubyObject arg2 = pop();
+// IRubyObject arg1 = pop();
+// IRubyObject recv = pop();
+// if (block == null) {
+// push(callAdapter.call(context, self, recv, arg1, arg2, arg3));
+// } else {
+// push(callAdapter.call(context, self, recv, arg1, arg2, arg3, block));
+// }
+// }
+// case 2: {
+// IRubyObject arg2 = pop();
+// IRubyObject arg1 = pop();
+// IRubyObject recv = pop();
+// if (block == null) {
+// push(callAdapter.call(context, self, recv, arg1, arg2));
+// } else {
+// push(callAdapter.call(context, self, recv, arg1, arg2, block));
+// }
+// break;
+// }
+// case 1: {
+// IRubyObject arg1 = pop();
+// IRubyObject recv = pop();
+// if (block == null) {
+// push(callAdapter.call(context, self, recv, arg1));
+// } else {
+// push(callAdapter.call(context, self, recv, arg1, block));
+// }
+// break;
+// }
+// case 0: {
+// IRubyObject recv = pop();
+// if (block == null) {
+// push(callAdapter.call(context, self, recv));
+// } else {
+// push(callAdapter.call(context, self, recv, block));
+// }
+// break;
+// }
+// default: {
+            IRubyObject[] args;
+            args = new IRubyObject[size];
+            popArray(args);
 
-                IRubyObject recv = pop();
-                // System.err.println("Calling " + name + " on " + recv +
+            IRubyObject recv = pop();
+            // System.err.println("Calling " + name + " on " + recv +
 // " args: " + Arrays.toString(args));
-                if (block == null) {
-                    push(callAdapter.call(context, self, recv, args));
-                } else {
-                    push(callAdapter.call(context, self, recv, args, block));
-                }
-                // System.err.println("Called " + name + " peek: " + peek() +
+            if (block == null) {
+                push(callAdapter.call(context, self, recv, args));
+            } else {
+                push(callAdapter.call(context, self, recv, args, block));
+            }
+            // System.err.println("Called " + name + " peek: " + peek() +
 // " stack: " + Arrays.toString(Arrays.copyOfRange(stack, 0, stackTop)));
-                break;
-            }
-            }
+// break;
+// }
+// }
         }
 
         private YARVBlockBody getBlockBody(YARVByteCode blockByteCode) {
@@ -581,7 +594,7 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
                 blockBody = new YARVBlockBody(scope, arity, argumentType, blockByteCode);
                 blockByteCode.blockBody = blockBody;
             }
-            
+
             return blockBody;
         }
 

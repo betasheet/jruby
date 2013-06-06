@@ -89,6 +89,8 @@ public class OutputStrings {
                 .append("  -X+C        force compilation of all scripts before they are run (except eval)\n")
                 .append("  -X-y        read a YARV-compiled Ruby script and run that (EXPERIMENTAL)\n")
                 .append("  -X-ysi      read a YARV-compiled Ruby script and run with subroutine interpreter (EXPERIMENTAL)\n")
+                .append("  -X-y-i      print iops assembly code for -X-ysi mode (EXPERIMENTAL)\n")
+                .append("  -X-y-t      print threaded code for -X-ysi mode (EXPERIMENTAL)\n")
                 .append("  -X-R        read a Rubinius-compiled Ruby script and run that (EXPERIMENTAL)\n");
 
         return sb.toString();

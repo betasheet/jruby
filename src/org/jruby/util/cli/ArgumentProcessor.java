@@ -345,6 +345,10 @@ public class ArgumentProcessor {
                     } else if (extendedOption.equals("-ysi")) {
                         config.setYARVEnabled(true);
                         config.setYARVSIEnabled(true);
+                    } else if (extendedOption.equals("-y-i")) {
+                        config.setYARVSIPrintIopsCodeEnabled(true);
+                    } else if (extendedOption.equals("-y-t")) {
+                        config.setYARVSIPrintThreadedCodeEnabled(true);
                     } else if (extendedOption.equals("-R")) {
                         config.setRubiniusEnabled(true);
                     } else if (extendedOption.equals("-CIR")) {

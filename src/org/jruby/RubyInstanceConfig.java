@@ -914,6 +914,22 @@ public class RubyInstanceConfig {
         yarvSI = enabled;
     }
 
+    public boolean isYARVSIPrintThreadedCodeEnabled() {
+        return yarvSIPrintThreadedCode;
+    }
+
+    public void setYARVSIPrintThreadedCodeEnabled(boolean enabled) {
+        yarvSIPrintThreadedCode = enabled;
+    }
+
+    public boolean isYARVSIPrintIopsCodeEnabled() {
+        return yarvSIPrintIopsCode;
+    }
+
+    public void setYARVSIPrintIopsCodeEnabled(boolean enabled) {
+        yarvSIPrintIopsCode = enabled;
+    }
+
     public String getInputFieldSeparator() {
         return inputFieldSeparator;
     }
@@ -1297,6 +1313,8 @@ public class RubyInstanceConfig {
 
     private boolean yarv = false;
     private boolean yarvSI = false;
+    private boolean yarvSIPrintThreadedCode = false;
+    private boolean yarvSIPrintIopsCode = false;
     private boolean rubinius = false;
     
     private boolean dumpConfig=false;
