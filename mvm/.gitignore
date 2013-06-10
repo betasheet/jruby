@@ -1,1 +1,5 @@
-/testscripts
+/testscripts/out_yarv/*
+/testscripts/out_jruby/*
+*.csv
+res.out
+

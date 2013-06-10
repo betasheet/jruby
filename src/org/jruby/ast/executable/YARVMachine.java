@@ -6,6 +6,7 @@ import org.jruby.RubyArray;
 import org.jruby.RubyBignum;
 import org.jruby.RubyClass;
 import org.jruby.RubyFixnum;
+import org.jruby.RubyFloat;
 import org.jruby.RubyHash;
 import org.jruby.RubyModule;
 import org.jruby.RubyRange;
@@ -36,11 +37,11 @@ public class YARVMachine {
 
     // is set from Ruby instance initialization
     public static boolean threadedCode;
-    
+
     public static final ThreadLocal<YARVMachine> INSTANCE = new ThreadLocal<YARVMachine>() {
         @Override
         protected YARVMachine initialValue() {
-            //System.err.println("new yarvmachine");
+            // System.err.println("new yarvmachine");
             return threadedCode ? new YARVThreadedCodeInterpreter() : new YARVMachine();
         }
     };
@@ -633,91 +634,323 @@ public class YARVMachine {
                 ip += 5;
                 break;
             }
+            // TODO OPT implementations should check for redefinition of methods
             case YARVInstructions.OPT_PLUS: {
                 // op_plus(runtime, context, self, pop(), pop());
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "+");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+                    long result = receiverValue + otherValue;
+                    if ((~(receiverValue ^ otherValue) & (receiverValue ^ result) & RubyFixnum.SIGN_BIT) != 0) {
+                        push(RubyBignum.newBignum(runtime, receiverValue).op_plus(context, other));
+                    } else {
+                        push(runtime.newFixnum(result));
+                    }
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+                    double result = receiverValue + otherValue;
+                    push(runtime.newFloat(result));
+                } else if (other instanceof RubyString && receiver instanceof RubyString) {
+                    String receiverValue = ((RubyString) receiver).toString();
+                    String otherValue = ((RubyString) other).toString();
+                    String result = receiverValue + otherValue;
+                    push(runtime.newString(result));
+                } else if (receiver instanceof RubyArray) {
+                    push(((RubyArray) receiver).op_plus(other));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "+", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_MINUS: {
                 // op_minus(runtime, context, self, pop(), pop());
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "-");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+                    long result = receiverValue - otherValue;
+                    if ((~(receiverValue ^ otherValue) & (receiverValue ^ result) & RubyFixnum.SIGN_BIT) != 0) {
+                        push(RubyBignum.newBignum(runtime, receiverValue).op_minus(context, other));
+                    } else {
+                        push(runtime.newFixnum(result));
+                    }
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+                    double result = receiverValue - otherValue;
+                    push(runtime.newFloat(result));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "-", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_MULT: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "*");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    if (receiverValue == 0) {
+                        push(runtime.newFixnum(0));
+                    } else {
+                        long otherValue = ((RubyFixnum) other).getLongValue();
+                        long result = receiverValue * otherValue;
+                        if (result / receiverValue != otherValue) {
+                            push(RubyBignum.newBignum(runtime, receiverValue)
+                                    .op_mul(context, other));
+                        } else {
+                            push(runtime.newFixnum(result));
+                        }
+                    }
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+                    double result = receiverValue * otherValue;
+                    push(runtime.newFloat(result));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "*", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_DIV: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "/");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+                    if (otherValue == 0) {
+                        InlineCache ic = byteCode.getInlineCache(op);
+                        sendVirtual1Arg(runtime, context, ic, self, "/", receiver, other);
+                    }
+
+                    long result;
+                    if (otherValue < 0) {
+                        if (receiverValue < 0)
+                            result = -receiverValue / -otherValue;
+                        else
+                            result = -(receiverValue / -otherValue);
+                    } else {
+                        if (receiverValue < 0)
+                            result = -(-receiverValue / otherValue);
+                        else
+                            result = receiverValue / otherValue;
+                    }
+                    long mod = receiverValue - result * otherValue;
+                    if ((mod < 0 && otherValue > 0) || (mod > 0 && otherValue < 0)) {
+                        mod += otherValue;
+                        result -= 1;
+                    }
+
+                    push(runtime.newFixnum(result));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+                    double result = receiverValue / otherValue;
+                    push(runtime.newFloat(result));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "/", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_MOD: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "%");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+                    if (otherValue == 0) {
+                        InlineCache ic = byteCode.getInlineCache(op);
+                        sendVirtual1Arg(runtime, context, ic, self, "%", receiver, other);
+                    }
+
+                    long result;
+                    if (otherValue < 0) {
+                        if (receiverValue < 0)
+                            result = -receiverValue / -otherValue;
+                        else
+                            result = -(receiverValue / -otherValue);
+                    } else {
+                        if (receiverValue < 0)
+                            result = -(-receiverValue / otherValue);
+                        else
+                            result = receiverValue / otherValue;
+                    }
+                    long mod = receiverValue - result * otherValue;
+                    if ((mod < 0 && otherValue > 0) || (mod > 0 && otherValue < 0)) {
+                        mod += otherValue;
+                        result -= 1;
+                    }
+
+                    push(runtime.newFixnum(mod));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+                    double result = receiverValue % otherValue;
+                    push(runtime.newFloat(result));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "%", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_EQ: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "==");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+
+                    push(runtime.newBoolean(receiverValue == otherValue));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+
+                    push(runtime.newBoolean(receiverValue == otherValue));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "==", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_NEQ: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "!=");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+
+                    push(runtime.newBoolean(receiverValue != otherValue));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+
+                    push(runtime.newBoolean(receiverValue != otherValue));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "!=", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_LT: {
-                // op_lt(runtime, context, self, pop(), pop());
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "<");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+
+                    push(runtime.newBoolean(receiverValue < otherValue));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+
+                    push(runtime.newBoolean(receiverValue < otherValue));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "<", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_LE: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "<=");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+
+                    push(runtime.newBoolean(receiverValue <= otherValue));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+
+                    push(runtime.newBoolean(receiverValue <= otherValue));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "<=", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_LTLT: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, "<<");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyString && receiver instanceof RubyString) {
+                    String receiverValue = ((RubyString) receiver).toString();
+                    String otherValue = ((RubyString) other).toString();
+                    String result = receiverValue + otherValue;
+                    push(runtime.newString(result));
+                } else if (receiver instanceof RubyArray) {
+                    push(((RubyArray) receiver).append(other));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, "<<", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_GT: {
-                // op_gt(runtime, context, self, pop(), pop());
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, ">");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+
+                    push(runtime.newBoolean(receiverValue > otherValue));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+
+                    push(runtime.newBoolean(receiverValue > otherValue));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, ">", receiver, other);
+                }
                 ip += 5;
                 break;
             }
             case YARVInstructions.OPT_GE: {
                 int op = YARVByteCode.getInt(body, ip + 1);
-                InlineCache ic = byteCode.getInlineCache(op);
-                sendVirtual1Arg(runtime, context, ic, self, ">=");
+                IRubyObject other = pop();
+                IRubyObject receiver = pop();
+                if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
+                    long receiverValue = ((RubyFixnum) receiver).getLongValue();
+                    long otherValue = ((RubyFixnum) other).getLongValue();
+
+                    push(runtime.newBoolean(receiverValue >= otherValue));
+                } else if (other instanceof RubyFloat && receiver instanceof RubyFloat) {
+                    double receiverValue = ((RubyFloat) receiver).getDoubleValue();
+                    double otherValue = ((RubyFloat) other).getDoubleValue();
+
+                    push(runtime.newBoolean(receiverValue >= otherValue));
+                } else {
+                    InlineCache ic = byteCode.getInlineCache(op);
+                    sendVirtual1Arg(runtime, context, ic, self, ">=", receiver, other);
+                }
                 ip += 5;
                 break;
             }
@@ -822,69 +1055,9 @@ public class YARVMachine {
         runtime.callEventHooks(context, event, context.getFile(), context.getLine(), name, type);
     }
 
-    protected void op_plus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
-            IRubyObject other, IRubyObject receiver) {
-        if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
-            long receiverValue = ((RubyFixnum) receiver).getLongValue();
-            long otherValue = ((RubyFixnum) other).getLongValue();
-            long result = receiverValue + otherValue;
-            if ((~(receiverValue ^ otherValue) & (receiverValue ^ result) & RubyFixnum.SIGN_BIT) != 0) {
-                push(RubyBignum.newBignum(runtime, receiverValue).op_plus(context, other));
-            } else {
-                push(runtime.newFixnum(result));
-            }
-        } else {
-            sendVirtual1Arg(runtime, context, ic, self, "+", receiver, other);
-            // push(receiver.callMethod(context, "+", other));
-        }
-    }
-
-    protected void op_minus(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
-            IRubyObject other, IRubyObject receiver) {
-        if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
-            long receiverValue = ((RubyFixnum) receiver).getLongValue();
-            long otherValue = ((RubyFixnum) other).getLongValue();
-            long result = receiverValue - otherValue;
-            if ((~(receiverValue ^ otherValue) & (receiverValue ^ result) & RubyFixnum.SIGN_BIT) != 0) {
-                push(RubyBignum.newBignum(runtime, receiverValue).op_minus(context, other));
-            } else {
-                push(runtime.newFixnum(result));
-            }
-        } else {
-            sendVirtual1Arg(runtime, context, ic, self, "-", receiver, other);
-            // push(receiver.callMethod(context, "-", other));
-        }
-    }
-
-    protected void op_lt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
-            IRubyObject other, IRubyObject receiver) {
-        if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
-            long receiverValue = ((RubyFixnum) receiver).getLongValue();
-            long otherValue = ((RubyFixnum) other).getLongValue();
-
-            push(runtime.newBoolean(receiverValue < otherValue));
-        } else {
-            sendVirtual1Arg(runtime, context, ic, self, "<", receiver, other);
-            // push(receiver.callMethod(context, "<", other));
-        }
-    }
-
-    protected void op_gt(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
-            IRubyObject other, IRubyObject receiver) {
-        if (other instanceof RubyFixnum && receiver instanceof RubyFixnum) {
-            long receiverValue = ((RubyFixnum) receiver).getLongValue();
-            long otherValue = ((RubyFixnum) other).getLongValue();
-
-            push(runtime.newBoolean(receiverValue > otherValue));
-        } else {
-            sendVirtual1Arg(runtime, context, ic, self, ">", receiver, other);
-            // push(receiver.callMethod(context, ">", other));
-        }
-    }
-
-    protected int send(Ruby runtime, ThreadContext context, IRubyObject self, String name, int size,
-            YARVByteCode blockByteCode, int flags, InlineCache ic, byte[] body, int stackStart,
-            int nextInstructionPos) {
+    protected int send(Ruby runtime, ThreadContext context, IRubyObject self, String name,
+            int size, YARVByteCode blockByteCode, int flags, InlineCache ic, byte[] body,
+            int stackStart, int nextInstructionPos) {
         Block block = null;
 
         if (blockByteCode != null) {
@@ -1023,7 +1196,8 @@ public class YARVMachine {
         return nextInstructionPos;
     }
 
-    private YARVBlockBody getBlockBody(YARVByteCode blockByteCode, Ruby runtime, ThreadContext context) {
+    private YARVBlockBody getBlockBody(YARVByteCode blockByteCode, Ruby runtime,
+            ThreadContext context) {
         YARVBlockBody blockBody = blockByteCode.blockBody;
 
         if (blockBody == null) {
@@ -1054,7 +1228,7 @@ public class YARVMachine {
             blockBody = new YARVBlockBody(scope, arity, argumentType, blockByteCode);
             blockByteCode.blockBody = blockBody;
         }
-        
+
         return blockBody;
     }
 
@@ -1064,8 +1238,8 @@ public class YARVMachine {
                 && recv == self && name.equals(context.getFrameName());
     }
 
-    protected void sendVirtual(Ruby runtime, ThreadContext context, InlineCache ic, IRubyObject self,
-            String name, int size) {
+    protected void sendVirtual(Ruby runtime, ThreadContext context, InlineCache ic,
+            IRubyObject self, String name, int size) {
         if (size == 3) {
             sendVirtual3Args(runtime, context, ic, self, name);
         } else if (size == 2) {

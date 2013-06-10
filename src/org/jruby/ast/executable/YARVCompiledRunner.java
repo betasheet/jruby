@@ -33,6 +33,7 @@ import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyFile;
 import org.jruby.RubyHash;
+import org.jruby.RubyInstanceConfig;
 import org.jruby.RubyNil;
 import org.jruby.RubyNumeric;
 import org.jruby.RubyString;
@@ -52,6 +53,10 @@ public class YARVCompiledRunner {
     public YARVCompiledRunner(Ruby runtime, InputStream in, String filename) {
         this.runtime = runtime;
         byte[] first = new byte[4];
+        RubyInstanceConfig config = runtime.getInstanceConfig();
+        
+        long start = config.startTimer(config.timeParse);
+        
         try {
             in.read(first);
             if (first[0] != 'R' || first[1] != 'B' || first[2] != 'C' || first[3] != 'M') {
@@ -64,6 +69,8 @@ public class YARVCompiledRunner {
         } catch (IOException e) {
             throw new RuntimeException("Couldn't read from source", e);
         }
+        
+        config.stopTimer(config.timeParse, start, RubyInstanceConfig.TIMER.PARSE);
     }
 
     public YARVCompiledRunner(Ruby runtime, YARVByteCode byteCode) {
@@ -153,8 +160,13 @@ public class YARVCompiledRunner {
         }
 
         if (YARVMachine.threadedCode) {
+            RubyInstanceConfig config = runtime.getInstanceConfig();
+            long start = config.startTimer(config.timeThreadGen || config.timeInterpret);
+            
             YARVThreadedCodeGenerator tcg = new YARVThreadedCodeGenerator(byteCode);
             byteCode.targetMethod = tcg.generateThreadedCode();
+            
+            config.stopTimer(config.timeThreadGen || config.timeInterpret, start, RubyInstanceConfig.TIMER.THREADGEN);
         }
 
         return byteCode;

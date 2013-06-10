@@ -91,8 +91,11 @@ public class Options {
                 }
             }
         }
+        boolean isMaxine = !vmName.equals("") && vmName.toLowerCase().contains("maxine");
 
-        if (hotspot24) {
+        if (isMaxine) {
+            INVOKEDYNAMIC_DEFAULT = false;
+        } else if (hotspot24) {
             INVOKEDYNAMIC_DEFAULT = true;
         } else if (isHotSpot) {
             INVOKEDYNAMIC_DEFAULT = false;

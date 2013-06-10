@@ -253,6 +253,32 @@ public class ArgumentProcessor {
                 case 's':
                     config.setArgvGlobalsOn(true);
                     break;
+                case 't':
+                    String timer = grabOptionalValue();
+                    if (timer == null) {
+                        if (SafePropertyAccessor.getBoolean("jruby.launcher.nopreamble", false)) {
+                            throw new MainExitException(0, OutputStrings.getBasicUsageHelp());
+                        } else {
+                            throw new MainExitException(0, "jruby: missing argument\n" + OutputStrings.getBasicUsageHelp());
+                        }
+                    } else if (timer.equals("run")) {
+                        config.timeRun = true;
+                    } else if (timer.equals("interpret")) {
+                        config.timeInterpret = true;
+                    } else if (timer.equals("compile")) {
+                        config.timeCompile = true;
+                    } else if (timer.equals("parse")) {
+                        config.timeParse = true;
+                    } else if (timer.equals("init")) {
+                        config.timeVMinit = true;
+                    } else if (timer.equals("threadgen")) {
+                        config.timeThreadGen = true;
+                    } else {
+                        MainExitException mee = new MainExitException(1, "jruby: invalid timer name " + timer + " (valid: run, interpret, compile, parse, init, threadgen)\n");
+                        mee.setUsageError(true);
+                        throw mee;
+                    }
+                    break FOR;
                 case 'G':
                     config.setLoadGemfile(true);
                     break;

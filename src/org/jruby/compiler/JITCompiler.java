@@ -44,6 +44,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import org.bouncycastle.util.encoders.Hex;
 import org.jruby.Ruby;
 import org.jruby.RubyModule;
 import org.jruby.MetaClass;

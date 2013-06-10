@@ -40,6 +40,7 @@ public class OutputStrings {
                 .append("  -p              assume loop like -n but print line also like sed\n")
                 .append("  -rlibrary       require the library, before executing your script\n")
                 .append("  -s              enable some switch parsing for switches after script name\n")
+                .append("  -t[timer]       enable a performance timer\n")
                 .append("  -S              look for the script in bin or using PATH environment variable\n")
                 .append("  -T[level]       turn on tainting checks\n")
                 .append("  -U              use UTF-8 as default internal encoding\n")
