@@ -227,6 +227,7 @@ public class YARVMachine {
 
         yarvloop: while (ip < body.length) {
             byte opCode = body[ip];
+            //YARVStats.trackInstruction(opCode);
             // System.err.println("Executing: " + YARVInstructions.name(opCode)
 // + " (ip=" + ip + ")");
             switch (opCode) {

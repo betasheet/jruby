@@ -122,6 +122,7 @@ def parse_cmd_line_args():
     p.add_option("-i", "--ins",     action="store_true", dest="ins",     default=False, help="run on top of maxine inspector")
     p.add_option("-z", "--bench",   action="store",      dest="bench",   type='int',    default=0, help="run benchmarks and print results")
     p.add_option("-p", "--perf",    action="store",      dest="perf",    default="",    help="options to pass to perf tool (linux only)")
+    p.add_option("-b", "--bytecode",action="store_true", dest="bytecode", default=False, help="Run a bytecode file instead of source file")
 
     return p.parse_args()
 
@@ -301,16 +302,22 @@ def run_bmarks_gn(script_path=os.path.abspath(get_maxine_scripts())):
     benchmark.process(results, host_vms)
     return []
 
-def execute_script(script_filename, script_path=os.path.abspath(get_maxine_scripts())):
+def execute_script(script_filename, bytecode, script_path=os.path.abspath(get_maxine_scripts())):
     """This function returns another closure so that we can bind the name of the script
     to be executed ("script_filename") to the execution closure. This is necessary because
     this filename comes from the OptionParser and needs to be made available to the
     execution closure in one way or another.
     """
     def closure():
-        path= "%s/%s" % (script_path, script_filename)
+        if bytecode:
+            path = script_filename + '.bin'
+            path = os.path.join(os.path.join(script_path, 'binarycode'), path)
+        else:
+            path = os.path.join(script_path, script_filename)
+        
         if not os.path.exists(path):
             exit('Specified script does not exist: %s' % path)
+
 
         yield get_exec(action_args=[path])
     return closure
@@ -328,7 +335,7 @@ if __name__ == "__main__":
 
     driver= {
         ## binds a command line argument to an action...
-        'execute' : execute_script(opts.execute),
+        'execute' : execute_script(opts.execute, opts.bytecode),
         'run'     : run_gn,
         'bench'   : run_bmarks_gn,
         }

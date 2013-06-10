@@ -86,6 +86,7 @@ import org.jruby.ast.executable.YARVByteCode;
 import org.jruby.ast.executable.YARVCompiledRunner;
 import org.jruby.ast.executable.YARVIOpsCodeTable;
 import org.jruby.ast.executable.YARVMachine;
+import org.jruby.ast.executable.YARVStats;
 import org.jruby.ast.executable.YARVThreadedCodeInterpreter;
 import org.jruby.ast.executable.YARVVMCore;
 import org.jruby.common.IRubyWarnings.ID;
@@ -544,12 +545,14 @@ public final class Ruby {
                 YARVCompiledRunner runner = new YARVCompiledRunner(this, inputStream, filename);
 
                 long interpretStart = config.startTimer(config.timeInterpret);
+                //YARVStats.clearStats();
 
                 try {
                     runner.run();
                 } finally {
                     config.stopTimer(config.timeInterpret, interpretStart,
                             RubyInstanceConfig.TIMER.INTERPRET);
+                    //YARVStats.printStats();
                 }
             } else if (config.isRubiniusEnabled()) {
                 if (config.isShowBytecode())
