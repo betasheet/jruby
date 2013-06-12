@@ -240,10 +240,10 @@ def run_bmarks_gn(script_path=os.path.abspath(get_maxine_scripts())):
         ]
 
     host_vms= [
-          #("ast", "org.jruby.Main -trun -X-C", "")
-           ("jit", "org.jruby.Main -trun", "")
-          , ("yarv", "org.jruby.Main -tinterpret -X-y", "bytecode")
-          #, ("yarv-si", "org.jruby.Main -tinterpret -X-ysi", "bytecode")
+          ("ast", "org.jruby.Main -trun -X-C", "")
+          # ("jit", "org.jruby.Main -trun", "")
+          #, ("yarv", "org.jruby.Main -tinterpret -X-y", "bytecode")
+          , ("yarv-si", "org.jruby.Main -tinterpret -X-ysi", "bytecode")
         ]
 
     results= []

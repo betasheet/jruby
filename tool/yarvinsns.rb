@@ -70,9 +70,26 @@ def get_instruction(str)
   i
 end
 
+def new_instr(name)
+  i = Instruction.new
+  i.name = name
+  i
+end
+
 for idef in defs
   instructions << get_instruction(idef)
 end
+
+instructions << new_instr('send_no_arg')
+instructions << new_instr('send_one_arg')
+instructions << new_instr('send_two_arg')
+instructions << new_instr('send_three_arg')
+instructions << new_instr('send_many_arg')
+instructions << new_instr('send_no_arg_block')
+instructions << new_instr('send_one_arg_block')
+instructions << new_instr('send_two_arg_block')
+instructions << new_instr('send_three_arg_block')
+instructions << new_instr('send_many_arg_block')
 
 def reformat(v)
   if "*" == v
