@@ -235,15 +235,15 @@ def run_bmarks_gn(script_path=os.path.abspath(get_maxine_scripts())):
           #("maxine", get_maxine_executable() + '-XX:+TimeCompilation')
           ("maxine", get_maxine_executable())
           #, ("maxine", get_maxine_executable())
-          #("maxine", get_maxine_executable() + '-XX:+TimeCompilation -C1X:+ExceptionHandlingElimination -C1X:EHEFilter=Lorg/python/core/PyThreadedCodeInterpreter,Lorg/python/core/PyBytecode')
           , ("maxine", get_maxine_executable() + '-C1X:+ExceptionHandlingElimination -C1X:EHEFilter=Lorg/jruby/ast/executable/YARV')
         ]
 
     host_vms= [
-          ("ast", "org.jruby.Main -trun -X-C", "")
-          # ("jit", "org.jruby.Main -trun", "")
-          #, ("yarv", "org.jruby.Main -tinterpret -X-y", "bytecode")
-          , ("yarv-si", "org.jruby.Main -tinterpret -X-ysi", "bytecode")
+          ("ast", "org.jruby.Main -trun -X-C", "")                                    # ast interpreter only
+          # ("jit", "org.jruby.Main -trun", "")                                       # jit compiler (fallback to ast)
+          #, ("yarv", "org.jruby.Main -tinterpret -X-y", "bytecode")                  # yarv bytecode interpreter
+          , ("yarv-si", "org.jruby.Main -tinterpret -X-ysi", "bytecode")              # subroutine threaded
+          #, ("yarv-si-s", "org.jruby.Main -tinterpret -X-ysi -X-y-s", "bytecode")    # subroutine threaded, send optimization
         ]
 
     results= []

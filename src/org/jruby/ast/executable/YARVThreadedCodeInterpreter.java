@@ -23,8 +23,6 @@ package org.jruby.ast.executable;
 
 import static com.sun.max.vm.compiler.CallEntryPoint.OPTIMIZED_ENTRY_POINT;
 
-import java.util.Arrays;
-
 import org.jruby.MetaClass;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
@@ -454,21 +452,10 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
             setn(op, peek());
         }
 
-        // TODO meteor: fails with different errors?
-        // seems like if we add print statement "got here", the error vanishes
-        // maybe check the compiled iop version of with/without print for
-// differences?
-
-        // TODO binarytrees 14: red stack overflow?
-
         @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND)
         public void sendTemplate(int op0, int size, int op2, int flags, int icId) {
             String name = (String) YARVByteCode.getConstant(op0);
 
-            // System.err.println("Calling " + name + " callDepth: " +
-// callDepth);
-            // System.err.println("Calling " + name + " peek: " + peek() +
-// " stack: " + Arrays.toString(Arrays.copyOfRange(stack, 0, stackTop)));
             YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
             InlineCache ic = byteCode.getInlineCache(icId);
 
@@ -504,66 +491,302 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
                 pushArray(splatArray);
             }
 
-// switch (size) {
-// case 3: {
-// IRubyObject arg3 = pop();
-// IRubyObject arg2 = pop();
-// IRubyObject arg1 = pop();
-// IRubyObject recv = pop();
-// if (block == null) {
-// push(callAdapter.call(context, self, recv, arg1, arg2, arg3));
-// } else {
-// push(callAdapter.call(context, self, recv, arg1, arg2, arg3, block));
-// }
-// }
-// case 2: {
-// IRubyObject arg2 = pop();
-// IRubyObject arg1 = pop();
-// IRubyObject recv = pop();
-// if (block == null) {
-// push(callAdapter.call(context, self, recv, arg1, arg2));
-// } else {
-// push(callAdapter.call(context, self, recv, arg1, arg2, block));
-// }
-// break;
-// }
-// case 1: {
-// IRubyObject arg1 = pop();
-// IRubyObject recv = pop();
-// if (block == null) {
-// push(callAdapter.call(context, self, recv, arg1));
-// } else {
-// push(callAdapter.call(context, self, recv, arg1, block));
-// }
-// break;
-// }
-// case 0: {
-// IRubyObject recv = pop();
-// if (block == null) {
-// push(callAdapter.call(context, self, recv));
-// } else {
-// push(callAdapter.call(context, self, recv, block));
-// }
-// break;
-// }
-// default: {
             IRubyObject[] args;
             args = new IRubyObject[size];
             popArray(args);
 
             IRubyObject recv = pop();
-            // System.err.println("Calling " + name + " on " + recv +
-// " args: " + Arrays.toString(args));
             if (block == null) {
                 push(callAdapter.call(context, self, recv, args));
             } else {
                 push(callAdapter.call(context, self, recv, args, block));
             }
-            // System.err.println("Called " + name + " peek: " + peek() +
-// " stack: " + Arrays.toString(Arrays.copyOfRange(stack, 0, stackTop)));
-// break;
-// }
-// }
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_MANY_ARG)
+        public void sendManyArgTemplate(int op0, int size, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
+                RubyArray splatArray = (RubyArray) pop();
+                size += splatArray.getLength() - 1;
+                pushArray(splatArray);
+            }
+
+            IRubyObject[] args;
+            args = new IRubyObject[size];
+            popArray(args);
+
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, args));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_MANY_ARG_BLOCK)
+        public void sendManyArgBlockTemplate(int op0, int size, int op2, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
+            YARVBlockBody blockBody = getBlockBody(blockByteCode);
+            blockBody.getStaticScope().determineModule();
+            Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+            Block block = new Block(blockBody, binding);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
+                RubyArray splatArray = (RubyArray) pop();
+                size += splatArray.getLength() - 1;
+                pushArray(splatArray);
+            }
+
+            IRubyObject[] args;
+            args = new IRubyObject[size];
+            popArray(args);
+
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, args, block));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_NO_ARG)
+        public void sendNoArgTemplate(int op0, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_NO_ARG_BLOCK)
+        public void sendNoArgBlockTemplate(int op0, int op2, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
+            YARVBlockBody blockBody = getBlockBody(blockByteCode);
+            blockBody.getStaticScope().determineModule();
+            Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+            Block block = new Block(blockBody, binding);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, block));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_ONE_ARG)
+        public void sendOneArgTemplate(int op0, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject arg1 = pop();
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, arg1));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_ONE_ARG_BLOCK)
+        public void sendOneArgBlockTemplate(int op0, int op2, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
+            YARVBlockBody blockBody = getBlockBody(blockByteCode);
+            blockBody.getStaticScope().determineModule();
+            Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+            Block block = new Block(blockBody, binding);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject arg1 = pop();
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, arg1, block));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_TWO_ARG)
+        public void sendTwoArgTemplate(int op0, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, arg1, arg2));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_TWO_ARG_BLOCK)
+        public void sendTwoArgBlockTemplate(int op0, int op2, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
+            YARVBlockBody blockBody = getBlockBody(blockByteCode);
+            blockBody.getStaticScope().determineModule();
+            Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+            Block block = new Block(blockBody, binding);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, arg1, arg2, block));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_THREE_ARG)
+        public void sendThreeArgTemplate(int op0, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject arg3 = pop();
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, arg1, arg2, arg3));
+        }
+
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_THREE_ARG_BLOCK)
+        public void sendThreeArgBlockTemplate(int op0, int op2, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
+            YARVBlockBody blockBody = getBlockBody(blockByteCode);
+            blockBody.getStaticScope().determineModule();
+            Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+            Block block = new Block(blockBody, binding);
+
+            InlineCache ic = byteCode.getInlineCache(icId);
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            IRubyObject arg3 = pop();
+            IRubyObject arg2 = pop();
+            IRubyObject arg1 = pop();
+            IRubyObject recv = pop();
+            push(callAdapter.call(context, self, recv, arg1, arg2, arg3, block));
         }
 
         private YARVBlockBody getBlockBody(YARVByteCode blockByteCode) {

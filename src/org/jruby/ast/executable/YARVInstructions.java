@@ -115,6 +115,16 @@ public abstract class YARVInstructions {
     public static final byte OPT_CALL_C_FUNCTION = 77;
     public static final byte BITBLT = 78;
     public static final byte ANSWER = 79;
+    public static final byte SEND_NO_ARG = 80;
+    public static final byte SEND_ONE_ARG = 81;
+    public static final byte SEND_TWO_ARG = 82;
+    public static final byte SEND_THREE_ARG = 83;
+    public static final byte SEND_MANY_ARG = 84;
+    public static final byte SEND_NO_ARG_BLOCK = 85;
+    public static final byte SEND_ONE_ARG_BLOCK = 86;
+    public static final byte SEND_TWO_ARG_BLOCK = 87;
+    public static final byte SEND_THREE_ARG_BLOCK = 88;
+    public static final byte SEND_MANY_ARG_BLOCK = 89;
 
     public static final Map INSTS_TO_INDEX = new HashMap();
     static {
@@ -198,6 +208,16 @@ public abstract class YARVInstructions {
         INSTS_TO_INDEX.put("opt_call_c_function", new Byte((byte) 77));
         INSTS_TO_INDEX.put("bitblt", new Byte((byte) 78));
         INSTS_TO_INDEX.put("answer", new Byte((byte) 79));
+        INSTS_TO_INDEX.put("send_no_arg", new Byte((byte) 80));
+        INSTS_TO_INDEX.put("send_one_arg", new Byte((byte) 81));
+        INSTS_TO_INDEX.put("send_two_arg", new Byte((byte) 82));
+        INSTS_TO_INDEX.put("send_three_arg", new Byte((byte) 83));
+        INSTS_TO_INDEX.put("send_many_arg", new Byte((byte) 84));
+        INSTS_TO_INDEX.put("send_no_arg_block", new Byte((byte) 85));
+        INSTS_TO_INDEX.put("send_one_arg_block", new Byte((byte) 86));
+        INSTS_TO_INDEX.put("send_two_arg_block", new Byte((byte) 87));
+        INSTS_TO_INDEX.put("send_three_arg_block", new Byte((byte) 88));
+        INSTS_TO_INDEX.put("send_many_arg_block", new Byte((byte) 89));
     }
     public static byte instruction(String name) {
         return ((Byte)INSTS_TO_INDEX.get(name)).byteValue();
@@ -283,13 +303,23 @@ public abstract class YARVInstructions {
                       "opt_regexpmatch2", 
                       "opt_call_c_function", 
                       "bitblt", 
-                      "answer"};
+                      "answer", 
+                      "send_no_arg", 
+                      "send_one_arg", 
+                      "send_two_arg", 
+                      "send_three_arg", 
+                      "send_many_arg", 
+                      "send_no_arg_block", 
+                      "send_one_arg_block", 
+                      "send_two_arg_block", 
+                      "send_three_arg_block", 
+                      "send_many_arg_block"};
 
     public static String name(int index) {
         return INDEX_TO_NAME[index];
     }
     
-    public static final byte LAST_OPCODE = 79;
+    public static final byte LAST_OPCODE = 89;
 
     public static final int ARGS_SPLAT_FLAG = 2;
     public static final int ARGS_BLOCKARG_FLAG = 4;
