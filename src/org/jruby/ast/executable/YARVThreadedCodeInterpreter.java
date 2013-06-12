@@ -452,6 +452,57 @@ public class YARVThreadedCodeInterpreter extends YARVMachine {
             setn(op, peek());
         }
 
+        @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND)
+        public void sendTemplate(int op0, int size, int op2, int flags, int icId) {
+            String name = (String) YARVByteCode.getConstant(op0);
+
+            YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode.getConstant(op2);
+            InlineCache ic = byteCode.getInlineCache(icId);
+
+            Block block = null;
+
+            if (blockByteCode != null) {
+                YARVBlockBody blockBody = getBlockBody(blockByteCode);
+
+                blockBody.getStaticScope().determineModule();
+                Binding binding = context.currentBinding(self, Visibility.PUBLIC);
+
+                block = new Block(blockBody, binding);
+            } else if ((flags & YARVInstructions.ARGS_BLOCKARG_FLAG) != 0) {
+                System.err.println("block arg support not implemented");
+            }
+
+            if (ic.cachedObject == null) {
+                if ((flags & YARVInstructions.VCALL_FLAG) == 0) {
+                    if ((flags & YARVInstructions.FCALL_FLAG) == 0) {
+                        ic.cachedObject = MethodIndex.getCallSite(name);
+                    } else {
+                        ic.cachedObject = MethodIndex.getFunctionalCallSite(name);
+                    }
+                } else {
+                    ic.cachedObject = MethodIndex.getVariableCallSite(name);
+                }
+            }
+            CallSite callAdapter = (CallSite) ic.cachedObject;
+
+            if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0) {
+                RubyArray splatArray = (RubyArray) pop();
+                size += splatArray.getLength() - 1;
+                pushArray(splatArray);
+            }
+
+            IRubyObject[] args;
+            args = new IRubyObject[size];
+            popArray(args);
+
+            IRubyObject recv = pop();
+            if (block == null) {
+                push(callAdapter.call(context, self, recv, args));
+            } else {
+                push(callAdapter.call(context, self, recv, args, block));
+            }
+        }
+
         @YARVBYTECODEIMPLEMENTATION(YARVInstructions.SEND_MANY_ARG)
         public void sendManyArgTemplate(int op0, int size, int flags, int icId) {
             String name = (String) YARVByteCode.getConstant(op0);

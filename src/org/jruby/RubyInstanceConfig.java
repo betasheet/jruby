@@ -954,6 +954,14 @@ public class RubyInstanceConfig {
         yarvSIPrintIopsCode = enabled;
     }
 
+    public boolean isYARVSISendOptimizationEnabled() {
+        return yarvSISendOpt;
+    }
+
+    public void setYARVSISendOptimizationEnabled(boolean enabled) {
+        yarvSISendOpt = enabled;
+    }
+
     public String getInputFieldSeparator() {
         return inputFieldSeparator;
     }
@@ -1306,7 +1314,8 @@ public class RubyInstanceConfig {
         }
 
         if (timeInterpret) {
-            // To make a fair comparison with normal interpreter thread gen time is
+            // To make a fair comparison with normal interpreter thread gen time
+// is
             // included in interpret time
             System.err.println("> interpret time");
             System.err.println((interpretTime + threadGenTime) / 1000000);
@@ -1426,6 +1435,7 @@ public class RubyInstanceConfig {
     private boolean yarvSI = false;
     private boolean yarvSIPrintThreadedCode = false;
     private boolean yarvSIPrintIopsCode = false;
+    private boolean yarvSISendOpt = false;
     private boolean rubinius = false;
 
     private boolean dumpConfig = false;

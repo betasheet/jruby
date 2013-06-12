@@ -233,17 +233,19 @@ def run_bmarks_gn(script_path=os.path.abspath(get_maxine_scripts())):
 #          ("hotspot", "java")
 #          , ("hotspot", "java")
           #("maxine", get_maxine_executable() + '-XX:+TimeCompilation')
-          ("maxine", get_maxine_executable())
-          , ("maxine", get_maxine_executable())
+          #("maxine", get_maxine_executable())
+          #, ("maxine", get_maxine_executable())
           #("maxine", get_maxine_executable() + '-XX:+TimeCompilation -C1X:+ExceptionHandlingElimination -C1X:EHEFilter=Lorg/python/core/PyThreadedCodeInterpreter,Lorg/python/core/PyBytecode')
-          #, ("maxine", get_maxine_executable() + '-C1X:+ExceptionHandlingElimination -C1X:EHEFilter=Lorg/python/core/PyThreadedCodeInterpreter,Lorg/python/core/PyBytecode')
+          ("maxine", get_maxine_executable() + '-C1X:+ExceptionHandlingElimination -C1X:EHEFilter=Lorg/jruby/ast/executable/YARV')
+          , ("maxine", get_maxine_executable() + '-C1X:+ExceptionHandlingElimination -C1X:EHEFilter=Lorg/jruby/ast/executable/YARV')
         ]
 
     host_vms= [
-          ("ast", "org.jruby.Main -trun -X-C", "")
+          #("ast", "org.jruby.Main -trun -X-C", "")
           # ("jit", "org.jruby.Main -trun", "")
           #, ("yarv", "org.jruby.Main -tinterpret -X-y", "bytecode")
-          , ("yarv-si", "org.jruby.Main -tinterpret -X-ysi", "bytecode")
+          ("yarv-si", "org.jruby.Main -tinterpret -X-ysi", "bytecode")
+          , ("yarv-si-s", "org.jruby.Main -tinterpret -X-ysi -X-y-s", "bytecode")
         ]
 
     results= []

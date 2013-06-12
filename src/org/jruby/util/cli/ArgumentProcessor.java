@@ -375,6 +375,8 @@ public class ArgumentProcessor {
                         config.setYARVSIPrintIopsCodeEnabled(true);
                     } else if (extendedOption.equals("-y-t")) {
                         config.setYARVSIPrintThreadedCodeEnabled(true);
+                    } else if (extendedOption.equals("-y-s")) {
+                        config.setYARVSISendOptimizationEnabled(true);
                     } else if (extendedOption.equals("-R")) {
                         config.setRubiniusEnabled(true);
                     } else if (extendedOption.equals("-CIR")) {

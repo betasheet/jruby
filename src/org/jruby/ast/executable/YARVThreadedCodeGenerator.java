@@ -163,82 +163,94 @@ public class YARVThreadedCodeGenerator {
                 int flags = readArg(body, next_instr, 3);
                 YARVByteCode blockByteCode = (YARVByteCode) YARVByteCode
                         .getConstant(byteCodeNumber);
-                if (blockByteCode == null) {
-                    if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0 || size > 3) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 1);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_MANY_ARG);
-                        emitSubroutineCall(callee);
-                    } else if (size == 0) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_NO_ARG);
-                        emitSubroutineCall(callee);
-                    } else if (size == 1) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_ONE_ARG);
-                        emitSubroutineCall(callee);
-                    } else if (size == 2) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_TWO_ARG);
-                        emitSubroutineCall(callee);
+                if (byteCode.getRuntime().getInstanceConfig().isYARVSISendOptimizationEnabled()) {
+                    if (blockByteCode == null) {
+                        if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0 || size > 3) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 1);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_MANY_ARG);
+                            emitSubroutineCall(callee);
+                        } else if (size == 0) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_NO_ARG);
+                            emitSubroutineCall(callee);
+                        } else if (size == 1) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_ONE_ARG);
+                            emitSubroutineCall(callee);
+                        } else if (size == 2) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_TWO_ARG);
+                            emitSubroutineCall(callee);
+                        } else {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_THREE_ARG);
+                            emitSubroutineCall(callee);
+                        }
                     } else {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND_THREE_ARG);
-                        emitSubroutineCall(callee);
+                        if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0 || size > 3) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 1);
+                            putArgIntoRegister(body, next_instr, 2);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_MANY_ARG_BLOCK);
+                            emitSubroutineCall(callee);
+                        } else if (size == 0) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 2);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_NO_ARG_BLOCK);
+                            emitSubroutineCall(callee);
+                        } else if (size == 1) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 2);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_ONE_ARG_BLOCK);
+                            emitSubroutineCall(callee);
+                        } else if (size == 2) {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 2);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_TWO_ARG_BLOCK);
+                            emitSubroutineCall(callee);
+                        } else {
+                            putArgIntoRegister(body, next_instr, 0);
+                            putArgIntoRegister(body, next_instr, 2);
+                            putArgIntoRegister(body, next_instr, 3);
+                            putArgIntoRegister(body, next_instr, 4);
+                            callee = iOpsCodeTable
+                                    .getImplementation(YARVInstructions.SEND_THREE_ARG_BLOCK);
+                            emitSubroutineCall(callee);
+                        }
                     }
                 } else {
-                    if ((flags & YARVInstructions.ARGS_SPLAT_FLAG) != 0 || size > 3) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 1);
-                        putArgIntoRegister(body, next_instr, 2);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable
-                                .getImplementation(YARVInstructions.SEND_MANY_ARG_BLOCK);
-                        emitSubroutineCall(callee);
-                    } else if (size == 0) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 2);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable
-                                .getImplementation(YARVInstructions.SEND_NO_ARG_BLOCK);
-                        emitSubroutineCall(callee);
-                    } else if (size == 1) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 2);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable
-                                .getImplementation(YARVInstructions.SEND_ONE_ARG_BLOCK);
-                        emitSubroutineCall(callee);
-                    } else if (size == 2) {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 2);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable
-                                .getImplementation(YARVInstructions.SEND_TWO_ARG_BLOCK);
-                        emitSubroutineCall(callee);
-                    } else {
-                        putArgIntoRegister(body, next_instr, 0);
-                        putArgIntoRegister(body, next_instr, 2);
-                        putArgIntoRegister(body, next_instr, 3);
-                        putArgIntoRegister(body, next_instr, 4);
-                        callee = iOpsCodeTable
-                                .getImplementation(YARVInstructions.SEND_THREE_ARG_BLOCK);
-                        emitSubroutineCall(callee);
-                    }
+                    putArgIntoRegister(body, next_instr, 0);
+                    putArgIntoRegister(body, next_instr, 1);
+                    putArgIntoRegister(body, next_instr, 2);
+                    putArgIntoRegister(body, next_instr, 3);
+                    putArgIntoRegister(body, next_instr, 4);
+                    callee = iOpsCodeTable.getImplementation(YARVInstructions.SEND);
+                    emitSubroutineCall(callee);
                 }
                 next_instr += 21;
                 break;

@@ -4,7 +4,7 @@ from math import *
 import numpy
 import csv
 
-num_of_runs = 3
+num_of_runs = 0
 
 def process(results, host_vms):
     tree= build_tree(results)
